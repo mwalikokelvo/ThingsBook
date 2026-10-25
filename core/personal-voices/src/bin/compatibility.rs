@@ -1,0 +1,1 @@
+fn main()->anyhow::Result<()>{let a:Vec<String>=std::env::args().collect();let r=thingsbook_voices::compatibility_probe(&a[1],&a[2])?;println!("{}",serde_json::to_string_pretty(&r)?);Ok(())}

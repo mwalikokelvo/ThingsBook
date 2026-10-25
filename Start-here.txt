@@ -1,0 +1,51 @@
+ThingsBook 1.12.5 — recovered Llama update
+
+Windows: ThingsBook-Independent-1.12.5.exe
+Android: ThingsBook-Android-1.12.5.apk
+Update Android over the existing installation; do not uninstall or clear app data.
+Keep the existing private voice pack. The original Android signing key is retained.
+
+This release repairs the partially applied Llama edits, including the app startup
+syntax error, overwritten research tools and broken PDF split view. The partial
+sources were preserved locally before recovery; 1.12.4 release files are retained.
+
+New and recovered features:
+- Appearance > Layout > PDF · page + text shows the rendered page and readable
+  transcript together. Desktop uses two columns; narrow screens stack the panes.
+  The transcript scroll position is saved. Scanned pages still need local OCR.
+- Notes > a saved highlight > Links opens a book/highlight picker. Links show in
+  both directions, can jump to the saved passage, and can be removed. They stay
+  in encrypted book metadata and travel in the existing encrypted backup format.
+- Add Publisher in book details, then use Cite for APA/MLA/Chicago/BibTeX drafts.
+  Check names, edition and formatting before academic use; this is not a complete
+  formal citation engine.
+- Import checks PDF/EPUB contents before relying on a filename extension, helping
+  with renamed books. Manual title/author choices and import retry are retained.
+- Existing flashcards/FSRS, footnote previews, comparison tools, personal fonts,
+  shelf finishes and privacy controls are restored and retained.
+
+The 100 MB per-book limit remains. Raising it to 500 MB without streaming would
+increase memory pressure, especially on Android. MOBI/AZW/DOCX and DRM decryption
+were not added. A malformed or protected book can still require a usable original.
+
+Matching EXE/APK packaging, host regressions and Windows runtime checks are listed
+in ThingsBook-1.12.5-Verification.json. Physical Android 1.12.5 testing is pending
+unless that report explicitly records a current APK-hash-bound device result.
+Earlier 1.12.4 Omnibus and 1.12.3 native-voice checks are historical evidence.
+
+The Omnibus no-sweep guard, local English OCR, personal-voice continuation and
+completed-phrase resume repairs remain. Scan clarity affects OCR accuracy and
+recognition delay. Full-book/background endurance, human voice review, native
+Android UI/storage/FTS migration, semantic search, private sync and the remaining
+Unified v5 requirements are unfinished.
+
+Building from this workspace after verified source changes:
+  C:\Python314\python.exe work/build-apps.py windows
+  C:\Python314\python.exe work/build-apps.py android
+Run from the project root after setting a consistent new release version and
+passing the relevant checks. Historical npm electron-builder settings are not the
+maintained independent EXE packaging path. Do not overwrite verified releases.
+
+Old-release deletion remains pending after an earlier command-policy rejection.
+No private libraries, recordings, voice models, backups or signing material were
+removed by this recovery.

@@ -1,0 +1,49 @@
+{
+  "name": "thingsbook-desktop",
+  "productName": "ThingsBook",
+  "version": "1.12.5",
+  "description": "A private offline reading room",
+  "author": "ThingsBook",
+  "license": "UNLICENSED",
+  "main": "main.cjs",
+  "scripts": {
+    "build": "electron-builder --win portable --x64"
+  },
+  "devDependencies": {
+    "electron": "44.5.1",
+    "electron-builder": "26.15.3"
+  },
+  "build": {
+    "appId": "com.thingsbook.desktop",
+    "asar": true,
+    "directories": {
+      "output": "../../outputs/ThingsBook-Desktop-build"
+    },
+    "files": [
+      "main.cjs",
+      "preload.cjs",
+      "icon.ico",
+      "web/**/*",
+      "package.json"
+    ],
+    "extraResources": [
+      {
+        "from": "native/SpeechBridge.exe",
+        "to": "SpeechBridge.exe"
+      }
+    ],
+    "win": {
+      "target": "portable",
+      "icon": "icon.ico",
+      "signAndEditExecutable": false,
+      "artifactName": "ThingsBook-Independent-1.8.0.exe"
+    },
+    "portable": {
+      "requestExecutionLevel": "user"
+    },
+    "electronLanguages": [
+      "en-US",
+      "en-GB"
+    ]
+  }
+}

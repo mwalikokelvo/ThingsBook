@@ -1,0 +1,25 @@
+[package]
+name = "thingsbook-personal-voices"
+version = "0.1.0"
+edition = "2024"
+[lib]
+name = "thingsbook_voices"
+crate-type = ["cdylib", "rlib"]
+[dependencies]
+ptts = { path = "vendor/xn-ptts/ptts", default-features = false, features = ["audio"] }
+xn = "=0.2.11"
+anyhow = "1"
+half = "2"
+log = "0.4"
+rand = { version = "0.9", default-features = false, features = ["std", "std_rng", "os_rng"] }
+rand_distr = "0.5"
+safetensors = "0.7"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+serde_yaml = "0.9"
+symphonia = { version = "0.5.3", features = ["all"] }
+tokenizers = { version = "0.23.1", default-features = false, features = ["fancy-regex"] }
+jni = "0.21"
+[profile.release]
+codegen-units = 1
+lto = "thin"

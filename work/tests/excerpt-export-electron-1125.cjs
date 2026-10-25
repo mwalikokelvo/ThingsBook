@@ -1,0 +1,7 @@
+const {app,BrowserWindow,session}=require('electron'),fs=require('fs'),path=require('path');const root=path.resolve(__dirname,'../..'),web=path.resolve(root,process.argv[2]||'outputs/ThingsBook');
+app.setPath('userData',path.join(root,'work','excerpt-test-'+Date.now()));let w;const report={version:'1.12.5',web,errors:[],network:[]};const timer=setTimeout(()=>app.exit(1),90000);
+app.whenReady().then(async()=>{session.defaultSession.webRequest.onBeforeRequest({urls:['http://*/*','https://*/*']},(d,done)=>{report.network.push(d.url);done({cancel:true})});w=new BrowserWindow({show:false,width:430,height:900,webPreferences:{sandbox:true,contextIsolation:true,nodeIntegration:false}});await w.loadFile(path.join(web,'index.html'));
+ await w.webContents.executeJavaScript("new Promise((resolve,reject)=>{let n=0;const t=setInterval(()=>{if(typeof db!=='undefined'&&db){clearInterval(t);resolve()}else if(++n>500){clearInterval(t);reject(Error('db timeout'))}},30)})");
+ report.result=await w.webContents.executeJavaScript(fs.readFileSync(path.join(__dirname,'excerpt-export-browser-1125.js'),'utf8')+'\ntestExcerptExport()');if(report.network.length)throw Error('Unexpected network requests');
+ fs.writeFileSync(path.join(__dirname,'excerpt-export-'+(web.includes('thingsbook-desktop')?'desktop':'shared')+'-1125.json'),JSON.stringify(report,null,2));clearTimeout(timer);app.quit();
+}).catch(e=>{report.errors.push(String(e.stack||e));fs.writeFileSync(path.join(__dirname,'excerpt-export-failure-1125.json'),JSON.stringify(report,null,2));clearTimeout(timer);app.exit(1)});

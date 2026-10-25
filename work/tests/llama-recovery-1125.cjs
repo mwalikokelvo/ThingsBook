@@ -1,0 +1,16 @@
+const fs=require('node:fs'),vm=require('node:vm'),assert=require('node:assert/strict');
+const base='outputs/ThingsBook/';
+for(const name of ['app.js','reader.js','vendor/research.js','vendor/import.js','vendor/citation.js'])new vm.Script(fs.readFileSync(base+name,'utf8'),{filename:name});
+const c={window:{},Date,TextDecoder,TextEncoder,Uint8Array};vm.createContext(c);
+vm.runInContext(fs.readFileSync(base+'vendor/citation.js','utf8'),c);
+vm.runInContext(fs.readFileSync(base+'vendor/research.js','utf8').split('window.ThingsResearch=')[0],c);
+assert.equal(typeof c.window.ResearchCore.links,'function');assert.equal(typeof c.window.ResearchCore.hydrate,'function');
+const book={id:'b1',author:'Ada Reader',title:'A private book',year:2026,publisher:'Local Press'};
+const cite=c.window.ThingsCitation.format(book,'APA',12);assert(cite.includes('Local Press')&&cite.includes('2026')&&cite.includes('p. 12'));
+assert(c.window.ResearchCore.cite(book,'BibTeX').includes('publisher = {Local Press}'));
+vm.runInContext(fs.readFileSync(base+'vendor/import.js','utf8'),c);
+assert.equal(c.window.ThingsImport.format('wrong.txt',new TextEncoder().encode('%PDF-1.4\n').buffer),'PDF');
+assert.equal(c.window.ThingsImport.format('chapter.txt',new TextEncoder().encode('A quiet chapter.').buffer),'TXT');
+assert.throws(()=>c.window.ThingsImport.format('broken.pdf',new TextEncoder().encode('not a PDF').buffer),/valid PDF/);
+assert.throws(()=>c.window.ThingsImport.format('script.exe',new Uint8Array([77,90,0,0]).buffer),/PDF, EPUB or TXT/);
+console.log('PASS: startup syntax, preserved research API, publisher/page citations and content-aware import validation.');

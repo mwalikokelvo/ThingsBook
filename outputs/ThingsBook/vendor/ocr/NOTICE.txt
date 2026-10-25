@@ -1,0 +1,1 @@
+Offline English OCR: Tesseract.js 7.0.0; Tesseract.js-core 7.0.0; English tessdata_fast from tesseract-ocr. Apache-2.0. Sources: https://github.com/naptha/tesseract.js ; https://github.com/naptha/tesseract.js-core ; https://github.com/tesseract-ocr/tessdata_fast . No remote downloads are used by the app.

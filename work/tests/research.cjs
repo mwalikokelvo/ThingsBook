@@ -1,0 +1,16 @@
+const fs=require('node:fs'),vm=require('node:vm'),assert=require('node:assert/strict');
+const sandbox=vm.createContext({window:{},Date});
+vm.runInContext(fs.readFileSync('outputs/ThingsBook/vendor/citation.js','utf8'),sandbox);
+vm.runInContext(fs.readFileSync('outputs/ThingsBook/vendor/research.js','utf8').split('window.ThingsResearch=')[0],sandbox);
+const core=sandbox.window.ResearchCore;
+assert.equal(JSON.stringify(core.links('Study [[First book]] and [[Second book]]. [[First book]]')),JSON.stringify(['First book','Second book']));
+const cite=core.cite({id:'b1',title:'A title',author:'A writer',year:2020},'BibTeX');assert(cite.includes('title = {A title}'));assert(cite.includes('year = {2020}'));
+const scheduler=require('../../outputs/ThingsBook/vendor/fsrs.js');const now=new Date('2026-10-06T12:00:00Z');
+const card=scheduler.createEmptyCard(now),f=scheduler.fsrs({enable_fuzz:false});
+const first=f.repeat(card,now)[scheduler.Rating.Good].card;
+assert(first.due>now);assert(first.reps>card.reps);
+const hydrated=core.hydrate(JSON.parse(JSON.stringify(first)));
+const second=f.repeat(hydrated,new Date(first.due))[scheduler.Rating.Good].card;
+assert(second.due>first.due);assert(second.reps>first.reps);
+assert.equal(typeof hydrated.due.getTime(),'number');
+console.log('PASS: linked-note references, citation metadata, real FSRS scheduling and persisted-date hydration.');

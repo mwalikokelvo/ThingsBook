@@ -1,0 +1,10 @@
+const fs=require('fs'),vm=require('vm'),assert=require('assert/strict');
+const ctx={window:{}};vm.runInNewContext(fs.readFileSync('outputs/ThingsBook/vendor/sanctuary.js','utf8').split('window.ThingsSanctuary=')[0],ctx);const api=ctx.window.SanctuaryCore;
+const book={id:'b',title:'A [link](https://example.invalid) <img>',author:'Ada',format:'PDF',cover:'SECRET COVER',progress:{secret:'SECRET PROGRESS'}};
+const items=[{book,kind:'highlight',location:2,paragraph:4,text:'Quote\n<script>bad</script> **bold** ![image](file:///private)',note:'My note 星',tags:['idea'],created:123,private:'SECRET UNKNOWN'}];
+const json=api.exportNotes(items,'JSON');const rows=JSON.parse(json.text);assert.equal(rows[0].locationLabel,'Page 3');assert.equal(rows[0].paragraph,4);assert.equal(rows[0].text,items[0].text);assert.equal(rows[0].bookAuthor,'Ada');assert.ok(!json.text.includes('SECRET'));assert.equal(json.extension,'json');assert.equal(json.mime,'application/json');
+const md=api.exportNotes(items,'Markdown');assert.ok(md.text.includes('> Quote\n> &lt;script&gt;'));assert.ok(!md.text.includes('<img>'));assert.ok(md.text.includes('\\[image\\]'));assert.ok(md.text.includes('Paragraph 5'));assert.ok(md.text.includes('星'));assert.equal(md.extension,'md');
+assert.ok(api.exportNotes(items,'Text').text.includes(items[0].text));assert.equal(api.exportNotes([{...items[0],book:{...book,format:'TXT'},location:0}],'Text').text.includes('Part 1'),true);
+assert.equal(JSON.parse(api.exportNotes(Array.from({length:301},()=>items[0]),'JSON').text).length,301);assert.equal(JSON.parse(api.exportNotes([],'JSON').text).length,0);assert.throws(()=>api.exportNotes(items,'HTML'));
+assert.equal(api.exportNotes([{...items[0],location:NaN,paragraph:-1}],'Text').text.includes('Page 1 · Paragraph 1'),true);
+console.log('PASS: explicit export fields, original Unicode text, source locations, inert Markdown, all301 annotations and supported formats.');

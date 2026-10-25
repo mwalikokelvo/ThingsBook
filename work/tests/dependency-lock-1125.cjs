@@ -1,0 +1,6 @@
+const fs=require('fs'),path=require('path'),assert=require('assert/strict');const root=path.resolve(__dirname,'../thingsbook-desktop'),lock=JSON.parse(fs.readFileSync(path.join(root,'package-lock.json'))),pkg=JSON.parse(fs.readFileSync(path.join(root,'package.json'))),installed=JSON.parse(fs.readFileSync(path.join(root,'node_modules/.package-lock.json')));let count=0;
+assert.equal(pkg.version,lock.version);assert.equal(pkg.version,lock.packages[''].version);
+for(const [name,item]of Object.entries(lock.packages)){if(!name)continue;const file=path.join(root,name,'package.json');if(!fs.existsSync(file))continue;count++;const actual=JSON.parse(fs.readFileSync(file));assert.equal(item.version,actual.version,name+' version');const metadata=installed.packages[name];if(metadata)for(const field of ['resolved','integrity'])if(metadata[field])assert.equal(item[field],metadata[field],name+' '+field);
+ for(const field of ['dependencies','optionalDependencies','peerDependencies'])for(const [dependency,value]of Object.entries(item[field]||{}))if(actual[field]?.[dependency]!==undefined)assert.equal(value,actual[field][dependency],name+' '+field+'/'+dependency);
+}
+console.log('PASS: root release version and '+count+' installed package versions, URLs, integrity and dependency ranges match lockfile; no runtime upgrades.');

@@ -1,0 +1,1604 @@
+{
+  "production_cargo_lock_sha256": "f06d287fd07ed698f16d4406938a732abe153116b56a2e032af739ef1ea54142",
+  "dependencies": [
+    {
+      "name": "ahash",
+      "version": "0.8.12",
+      "source": "https://crates.io/crates/ahash/0.8.12",
+      "notices": [
+        "LICENSE-APACHE",
+        "LICENSE-MIT"
+      ]
+    },
+    {
+      "name": "aho-corasick",
+      "version": "1.1.5",
+      "source": "https://crates.io/crates/aho-corasick/1.1.5",
+      "notices": [
+        "COPYING",
+        "LICENSE-MIT"
+      ]
+    },
+    {
+      "name": "allocator-api2",
+      "version": "0.2.21",
+      "source": "https://crates.io/crates/allocator-api2/0.2.21",
+      "notices": [
+        "LICENSE-APACHE",
+        "LICENSE-MIT"
+      ]
+    },
+    {
+      "name": "anyhow",
+      "version": "1.0.104",
+      "source": "https://crates.io/crates/anyhow/1.0.104",
+      "notices": [
+        "LICENSE-APACHE",
+        "LICENSE-MIT"
+      ]
+    },
+    {
+      "name": "arrayvec",
+      "version": "0.7.8",
+      "source": "https://crates.io/crates/arrayvec/0.7.8",
+      "notices": [
+        "LICENSE-APACHE",
+        "LICENSE-MIT"
+      ]
+    },
+    {
+      "name": "autocfg",
+      "version": "1.5.1",
+      "source": "https://crates.io/crates/autocfg/1.5.1",
+      "notices": [
+        "LICENSE-APACHE",
+        "LICENSE-MIT"
+      ]
+    },
+    {
+      "name": "base64",
+      "version": "0.13.1",
+      "source": "https://crates.io/crates/base64/0.13.1",
+      "notices": [
+        "LICENSE-APACHE",
+        "LICENSE-MIT"
+      ]
+    },
+    {
+      "name": "bit-set",
+      "version": "0.8.0",
+      "source": "https://crates.io/crates/bit-set/0.8.0",
+      "notices": [
+        "LICENSE-APACHE",
+        "LICENSE-MIT"
+      ]
+    },
+    {
+      "name": "bit-vec",
+      "version": "0.8.0",
+      "source": "https://crates.io/crates/bit-vec/0.8.0",
+      "notices": [
+        "LICENSE-APACHE",
+        "LICENSE-MIT"
+      ]
+    },
+    {
+      "name": "bitflags",
+      "version": "1.3.2",
+      "source": "https://crates.io/crates/bitflags/1.3.2",
+      "notices": [
+        "LICENSE-APACHE",
+        "LICENSE-MIT"
+      ]
+    },
+    {
+      "name": "bitflags",
+      "version": "2.13.2",
+      "source": "https://crates.io/crates/bitflags/2.13.2",
+      "notices": [
+        "LICENSE-APACHE",
+        "LICENSE-MIT"
+      ]
+    },
+    {
+      "name": "bytemuck",
+      "version": "1.25.2",
+      "source": "https://crates.io/crates/bytemuck/1.25.2",
+      "notices": [
+        "LICENSE-APACHE",
+        "LICENSE-MIT",
+        "LICENSE-ZLIB"
+      ]
+    },
+    {
+      "name": "bytemuck_derive",
+      "version": "1.12.1",
+      "source": "https://crates.io/crates/bytemuck_derive/1.12.1",
+      "notices": [
+        "LICENSE-APACHE",
+        "LICENSE-MIT",
+        "LICENSE-ZLIB"
+      ]
+    },
+    {
+      "name": "byteorder",
+      "version": "1.5.0",
+      "source": "https://crates.io/crates/byteorder/1.5.0",
+      "notices": [
+        "COPYING",
+        "LICENSE-MIT"
+      ]
+    },
+    {
+      "name": "bytes",
+      "version": "1.12.1",
+      "source": "https://crates.io/crates/bytes/1.12.1",
+      "notices": [
+        "LICENSE"
+      ]
+    },
+    {
+      "name": "castaway",
+      "version": "0.2.4",
+      "source": "https://crates.io/crates/castaway/0.2.4",
+      "notices": [
+        "LICENSE"
+      ]
+    },
+    {
+      "name": "cesu8",
+      "version": "1.1.0",
+      "source": "https://crates.io/crates/cesu8/1.1.0",
+      "notices": []
+    },
+    {
+      "name": "cfg-if",
+      "version": "1.0.5",
+      "source": "https://crates.io/crates/cfg-if/1.0.5",
+      "notices": [
+        "LICENSE-APACHE",
+        "LICENSE-MIT"
+      ]
+    },
+    {
+      "name": "combine",
+      "version": "4.6.9",
+      "source": "https://crates.io/crates/combine/4.6.9",
+      "notices": [
+        "LICENSE"
+      ]
+    },
+    {
+      "name": "compact_str",
+      "version": "0.9.1",
+      "source": "https://crates.io/crates/compact_str/0.9.1",
+      "notices": [
+        "LICENSE"
+      ]
+    },
+    {
+      "name": "core_detect",
+      "version": "1.0.0",
+      "source": "https://crates.io/crates/core_detect/1.0.0",
+      "notices": [
+        "LICENSE-APACHE",
+        "LICENSE-MIT"
+      ]
+    },
+    {
+      "name": "crossbeam-deque",
+      "version": "0.8.8",
+      "source": "https://crates.io/crates/crossbeam-deque/0.8.8",
+      "notices": [
+        "LICENSE-APACHE",
+        "LICENSE-MIT"
+      ]
+    },
+    {
+      "name": "crossbeam-epoch",
+      "version": "0.9.21",
+      "source": "https://crates.io/crates/crossbeam-epoch/0.9.21",
+      "notices": [
+        "LICENSE-APACHE",
+        "LICENSE-MIT"
+      ]
+    },
+    {
+      "name": "crossbeam-utils",
+      "version": "0.8.23",
+      "source": "https://crates.io/crates/crossbeam-utils/0.8.23",
+      "notices": [
+        "LICENSE-APACHE",
+        "LICENSE-MIT"
+      ]
+    },
+    {
+      "name": "crunchy",
+      "version": "0.2.4",
+      "source": "https://crates.io/crates/crunchy/0.2.4",
+      "notices": []
+    },
+    {
+      "name": "daachorse",
+      "version": "3.0.3",
+      "source": "https://crates.io/crates/daachorse/3.0.3",
+      "notices": [
+        "LICENSE-APACHE",
+        "LICENSE-MIT"
+      ]
+    },
+    {
+      "name": "darling",
+      "version": "0.20.11",
+      "source": "https://crates.io/crates/darling/0.20.11",
+      "notices": [
+        "LICENSE"
+      ]
+    },
+    {
+      "name": "darling_core",
+      "version": "0.20.11",
+      "source": "https://crates.io/crates/darling_core/0.20.11",
+      "notices": [
+        "LICENSE"
+      ]
+    },
+    {
+      "name": "darling_macro",
+      "version": "0.20.11",
+      "source": "https://crates.io/crates/darling_macro/0.20.11",
+      "notices": [
+        "LICENSE"
+      ]
+    },
+    {
+      "name": "dary_heap",
+      "version": "0.3.9",
+      "source": "https://crates.io/crates/dary_heap/0.3.9",
+      "notices": [
+        "LICENSE-APACHE",
+        "LICENSE-MIT"
+      ]
+    },
+    {
+      "name": "dasp_frame",
+      "version": "0.11.0",
+      "source": "https://crates.io/crates/dasp_frame/0.11.0",
+      "notices": []
+    },
+    {
+      "name": "dasp_sample",
+      "version": "0.11.0",
+      "source": "https://crates.io/crates/dasp_sample/0.11.0",
+      "notices": []
+    },
+    {
+      "name": "derive_builder",
+      "version": "0.20.2",
+      "source": "https://crates.io/crates/derive_builder/0.20.2",
+      "notices": [
+        "LICENSE-APACHE",
+        "LICENSE-MIT"
+      ]
+    },
+    {
+      "name": "derive_builder_core",
+      "version": "0.20.2",
+      "source": "https://crates.io/crates/derive_builder_core/0.20.2",
+      "notices": [
+        "LICENSE-APACHE",
+        "LICENSE-MIT"
+      ]
+    },
+    {
+      "name": "derive_builder_macro",
+      "version": "0.20.2",
+      "source": "https://crates.io/crates/derive_builder_macro/0.20.2",
+      "notices": [
+        "LICENSE-APACHE",
+        "LICENSE-MIT"
+      ]
+    },
+    {
+      "name": "dyn-stack",
+      "version": "0.13.2",
+      "source": "https://crates.io/crates/dyn-stack/0.13.2",
+      "notices": [
+        "LICENSE"
+      ]
+    },
+    {
+      "name": "dyn-stack-macros",
+      "version": "0.1.3",
+      "source": "https://crates.io/crates/dyn-stack-macros/0.1.3",
+      "notices": [
+        "LICENSE"
+      ]
+    },
+    {
+      "name": "ebur128",
+      "version": "0.1.10",
+      "source": "https://crates.io/crates/ebur128/0.1.10",
+      "notices": [
+        "LICENSE"
+      ]
+    },
+    {
+      "name": "either",
+      "version": "1.19.0",
+      "source": "https://crates.io/crates/either/1.19.0",
+      "notices": [
+        "LICENSE-APACHE",
+        "LICENSE-MIT"
+      ]
+    },
+    {
+      "name": "encoding_rs",
+      "version": "0.8.42",
+      "source": "https://crates.io/crates/encoding_rs/0.8.42",
+      "notices": [
+        "LICENSE-APACHE",
+        "LICENSE-MIT",
+        "LICENSE-WHATWG"
+      ]
+    },
+    {
+      "name": "enum-as-inner",
+      "version": "0.6.1",
+      "source": "https://crates.io/crates/enum-as-inner/0.6.1",
+      "notices": []
+    },
+    {
+      "name": "equivalent",
+      "version": "1.0.3",
+      "source": "https://crates.io/crates/equivalent/1.0.3",
+      "notices": [
+        "LICENSE-APACHE",
+        "LICENSE-MIT"
+      ]
+    },
+    {
+      "name": "esaxx-rs",
+      "version": "0.1.10",
+      "source": "https://crates.io/crates/esaxx-rs/0.1.10",
+      "notices": [
+        "LICENSE"
+      ]
+    },
+    {
+      "name": "extended",
+      "version": "0.1.0",
+      "source": "https://crates.io/crates/extended/0.1.0",
+      "notices": [
+        "LICENSE.txt"
+      ]
+    },
+    {
+      "name": "fancy-regex",
+      "version": "0.17.0",
+      "source": "https://crates.io/crates/fancy-regex/0.17.0",
+      "notices": [
+        "AUTHORS",
+        "LICENSE"
+      ]
+    },
+    {
+      "name": "fnv",
+      "version": "1.0.7",
+      "source": "https://crates.io/crates/fnv/1.0.7",
+      "notices": [
+        "LICENSE-APACHE",
+        "LICENSE-MIT"
+      ]
+    },
+    {
+      "name": "foldhash",
+      "version": "0.2.0",
+      "source": "https://crates.io/crates/foldhash/0.2.0",
+      "notices": [
+        "LICENSE"
+      ]
+    },
+    {
+      "name": "getrandom",
+      "version": "0.3.4",
+      "source": "https://crates.io/crates/getrandom/0.3.4",
+      "notices": [
+        "LICENSE-APACHE",
+        "LICENSE-MIT"
+      ]
+    },
+    {
+      "name": "half",
+      "version": "2.7.1",
+      "source": "https://crates.io/crates/half/2.7.1",
+      "notices": [
+        "LICENSE-APACHE",
+        "LICENSE-MIT"
+      ]
+    },
+    {
+      "name": "hashbrown",
+      "version": "0.16.1",
+      "source": "https://crates.io/crates/hashbrown/0.16.1",
+      "notices": [
+        "LICENSE-APACHE",
+        "LICENSE-MIT"
+      ]
+    },
+    {
+      "name": "hashbrown",
+      "version": "0.17.1",
+      "source": "https://crates.io/crates/hashbrown/0.17.1",
+      "notices": [
+        "LICENSE-APACHE",
+        "LICENSE-MIT"
+      ]
+    },
+    {
+      "name": "heck",
+      "version": "0.5.0",
+      "source": "https://crates.io/crates/heck/0.5.0",
+      "notices": [
+        "LICENSE-APACHE",
+        "LICENSE-MIT"
+      ]
+    },
+    {
+      "name": "hermit-abi",
+      "version": "0.5.3",
+      "source": "https://crates.io/crates/hermit-abi/0.5.3",
+      "notices": []
+    },
+    {
+      "name": "ident_case",
+      "version": "1.0.1",
+      "source": "https://crates.io/crates/ident_case/1.0.1",
+      "notices": [
+        "LICENSE"
+      ]
+    },
+    {
+      "name": "indexmap",
+      "version": "2.14.2",
+      "source": "https://crates.io/crates/indexmap/2.14.2",
+      "notices": [
+        "LICENSE-APACHE",
+        "LICENSE-MIT"
+      ]
+    },
+    {
+      "name": "itertools",
+      "version": "0.14.0",
+      "source": "https://crates.io/crates/itertools/0.14.0",
+      "notices": [
+        "LICENSE-APACHE",
+        "LICENSE-MIT"
+      ]
+    },
+    {
+      "name": "itoa",
+      "version": "1.0.18",
+      "source": "https://crates.io/crates/itoa/1.0.18",
+      "notices": [
+        "LICENSE-APACHE",
+        "LICENSE-MIT"
+      ]
+    },
+    {
+      "name": "jni",
+      "version": "0.21.1",
+      "source": "https://crates.io/crates/jni/0.21.1",
+      "notices": [
+        "LICENSE-APACHE",
+        "LICENSE-MIT"
+      ]
+    },
+    {
+      "name": "jni-sys",
+      "version": "0.3.1",
+      "source": "https://crates.io/crates/jni-sys/0.3.1",
+      "notices": [
+        "LICENSE-APACHE",
+        "LICENSE-MIT"
+      ]
+    },
+    {
+      "name": "jni-sys",
+      "version": "0.4.1",
+      "source": "https://crates.io/crates/jni-sys/0.4.1",
+      "notices": [
+        "LICENSE-APACHE",
+        "LICENSE-MIT"
+      ]
+    },
+    {
+      "name": "jni-sys-macros",
+      "version": "0.4.1",
+      "source": "https://crates.io/crates/jni-sys-macros/0.4.1",
+      "notices": []
+    },
+    {
+      "name": "lazy_static",
+      "version": "1.5.1",
+      "source": "https://crates.io/crates/lazy_static/1.5.1",
+      "notices": [
+        "LICENSE-APACHE",
+        "LICENSE-MIT"
+      ]
+    },
+    {
+      "name": "libc",
+      "version": "0.2.191",
+      "source": "https://crates.io/crates/libc/0.2.191",
+      "notices": [
+        "LICENSE-APACHE",
+        "LICENSE-MIT"
+      ]
+    },
+    {
+      "name": "libm",
+      "version": "0.2.16",
+      "source": "https://crates.io/crates/libm/0.2.16",
+      "notices": [
+        "LICENSE.txt"
+      ]
+    },
+    {
+      "name": "log",
+      "version": "0.4.34",
+      "source": "https://crates.io/crates/log/0.4.34",
+      "notices": [
+        "LICENSE-APACHE",
+        "LICENSE-MIT"
+      ]
+    },
+    {
+      "name": "macro_rules_attribute",
+      "version": "0.2.3",
+      "source": "https://crates.io/crates/macro_rules_attribute/0.2.3",
+      "notices": [
+        "LICENSE-APACHE",
+        "LICENSE-MIT",
+        "LICENSE-ZLIB"
+      ]
+    },
+    {
+      "name": "macro_rules_attribute-proc_macro",
+      "version": "0.2.3",
+      "source": "https://crates.io/crates/macro_rules_attribute-proc_macro/0.2.3",
+      "notices": [
+        "LICENSE-APACHE",
+        "LICENSE-MIT",
+        "LICENSE-ZLIB"
+      ]
+    },
+    {
+      "name": "matchers",
+      "version": "0.2.0",
+      "source": "https://crates.io/crates/matchers/0.2.0",
+      "notices": [
+        "LICENSE"
+      ]
+    },
+    {
+      "name": "memchr",
+      "version": "2.8.3",
+      "source": "https://crates.io/crates/memchr/2.8.3",
+      "notices": [
+        "COPYING",
+        "LICENSE-MIT"
+      ]
+    },
+    {
+      "name": "memmap2",
+      "version": "0.9.11",
+      "source": "https://crates.io/crates/memmap2/0.9.11",
+      "notices": [
+        "LICENSE-APACHE",
+        "LICENSE-MIT"
+      ]
+    },
+    {
+      "name": "minimal-lexical",
+      "version": "0.2.1",
+      "source": "https://crates.io/crates/minimal-lexical/0.2.1",
+      "notices": [
+        "LICENSE-APACHE",
+        "LICENSE-MIT",
+        "LICENSE.md"
+      ]
+    },
+    {
+      "name": "monostate",
+      "version": "0.1.18",
+      "source": "https://crates.io/crates/monostate/0.1.18",
+      "notices": [
+        "LICENSE-APACHE",
+        "LICENSE-MIT"
+      ]
+    },
+    {
+      "name": "monostate-impl",
+      "version": "0.1.18",
+      "source": "https://crates.io/crates/monostate-impl/0.1.18",
+      "notices": [
+        "LICENSE-APACHE",
+        "LICENSE-MIT"
+      ]
+    },
+    {
+      "name": "multiversion_no_op",
+      "version": "1.0.0",
+      "source": "https://crates.io/crates/multiversion_no_op/1.0.0",
+      "notices": [
+        "LICENSE-APACHE",
+        "LICENSE-MIT"
+      ]
+    },
+    {
+      "name": "nom",
+      "version": "7.1.3",
+      "source": "https://crates.io/crates/nom/7.1.3",
+      "notices": [
+        "LICENSE"
+      ]
+    },
+    {
+      "name": "nu-ansi-term",
+      "version": "0.50.3",
+      "source": "https://crates.io/crates/nu-ansi-term/0.50.3",
+      "notices": [
+        "LICENSE"
+      ]
+    },
+    {
+      "name": "num-complex",
+      "version": "0.4.6",
+      "source": "https://crates.io/crates/num-complex/0.4.6",
+      "notices": [
+        "LICENSE-APACHE",
+        "LICENSE-MIT"
+      ]
+    },
+    {
+      "name": "num-integer",
+      "version": "0.1.47",
+      "source": "https://crates.io/crates/num-integer/0.1.47",
+      "notices": [
+        "LICENSE-APACHE",
+        "LICENSE-MIT"
+      ]
+    },
+    {
+      "name": "num-traits",
+      "version": "0.2.19",
+      "source": "https://crates.io/crates/num-traits/0.2.19",
+      "notices": [
+        "LICENSE-APACHE",
+        "LICENSE-MIT"
+      ]
+    },
+    {
+      "name": "num_cpus",
+      "version": "1.17.0",
+      "source": "https://crates.io/crates/num_cpus/1.17.0",
+      "notices": [
+        "LICENSE-APACHE",
+        "LICENSE-MIT"
+      ]
+    },
+    {
+      "name": "once_cell",
+      "version": "1.21.4",
+      "source": "https://crates.io/crates/once_cell/1.21.4",
+      "notices": [
+        "LICENSE-APACHE",
+        "LICENSE-MIT"
+      ]
+    },
+    {
+      "name": "paste",
+      "version": "1.0.15",
+      "source": "https://crates.io/crates/paste/1.0.15",
+      "notices": [
+        "LICENSE-APACHE",
+        "LICENSE-MIT"
+      ]
+    },
+    {
+      "name": "pastey",
+      "version": "0.2.3",
+      "source": "https://crates.io/crates/pastey/0.2.3",
+      "notices": [
+        "LICENSE-APACHE",
+        "LICENSE-MIT"
+      ]
+    },
+    {
+      "name": "pin-project-lite",
+      "version": "0.2.17",
+      "source": "https://crates.io/crates/pin-project-lite/0.2.17",
+      "notices": [
+        "LICENSE-APACHE",
+        "LICENSE-MIT"
+      ]
+    },
+    {
+      "name": "ppv-lite86",
+      "version": "0.2.21",
+      "source": "https://crates.io/crates/ppv-lite86/0.2.21",
+      "notices": [
+        "LICENSE-APACHE",
+        "LICENSE-MIT"
+      ]
+    },
+    {
+      "name": "primal-check",
+      "version": "0.3.4",
+      "source": "https://crates.io/crates/primal-check/0.3.4",
+      "notices": [
+        "LICENSE-APACHE",
+        "LICENSE-MIT"
+      ]
+    },
+    {
+      "name": "proc-macro2",
+      "version": "1.0.107",
+      "source": "https://crates.io/crates/proc-macro2/1.0.107",
+      "notices": [
+        "LICENSE-APACHE",
+        "LICENSE-MIT"
+      ]
+    },
+    {
+      "name": "pulp",
+      "version": "0.22.3",
+      "source": "https://crates.io/crates/pulp/0.22.3",
+      "notices": [
+        "LICENSE"
+      ]
+    },
+    {
+      "name": "pulp-wasm-simd-flag",
+      "version": "0.1.1",
+      "source": "https://crates.io/crates/pulp-wasm-simd-flag/0.1.1",
+      "notices": []
+    },
+    {
+      "name": "quote",
+      "version": "1.0.47",
+      "source": "https://crates.io/crates/quote/1.0.47",
+      "notices": [
+        "LICENSE-APACHE",
+        "LICENSE-MIT"
+      ]
+    },
+    {
+      "name": "r-efi",
+      "version": "5.3.0",
+      "source": "https://crates.io/crates/r-efi/5.3.0",
+      "notices": []
+    },
+    {
+      "name": "rand",
+      "version": "0.9.5",
+      "source": "https://crates.io/crates/rand/0.9.5",
+      "notices": [
+        "LICENSE-APACHE",
+        "LICENSE-MIT"
+      ]
+    },
+    {
+      "name": "rand_chacha",
+      "version": "0.9.0",
+      "source": "https://crates.io/crates/rand_chacha/0.9.0",
+      "notices": [
+        "LICENSE-APACHE",
+        "LICENSE-MIT"
+      ]
+    },
+    {
+      "name": "rand_core",
+      "version": "0.9.5",
+      "source": "https://crates.io/crates/rand_core/0.9.5",
+      "notices": [
+        "LICENSE-APACHE",
+        "LICENSE-MIT"
+      ]
+    },
+    {
+      "name": "rand_distr",
+      "version": "0.5.1",
+      "source": "https://crates.io/crates/rand_distr/0.5.1",
+      "notices": [
+        "LICENSE-APACHE",
+        "LICENSE-MIT"
+      ]
+    },
+    {
+      "name": "raw-cpuid",
+      "version": "11.6.0",
+      "source": "https://crates.io/crates/raw-cpuid/11.6.0",
+      "notices": [
+        "AUTHORS",
+        "LICENSE.md"
+      ]
+    },
+    {
+      "name": "rayon",
+      "version": "1.12.0",
+      "source": "https://crates.io/crates/rayon/1.12.0",
+      "notices": [
+        "LICENSE-APACHE",
+        "LICENSE-MIT"
+      ]
+    },
+    {
+      "name": "rayon-cond",
+      "version": "0.4.0",
+      "source": "https://crates.io/crates/rayon-cond/0.4.0",
+      "notices": [
+        "LICENSE-APACHE",
+        "LICENSE-MIT"
+      ]
+    },
+    {
+      "name": "rayon-core",
+      "version": "1.13.0",
+      "source": "https://crates.io/crates/rayon-core/1.13.0",
+      "notices": [
+        "LICENSE-APACHE",
+        "LICENSE-MIT"
+      ]
+    },
+    {
+      "name": "realfft",
+      "version": "3.5.0",
+      "source": "https://crates.io/crates/realfft/3.5.0",
+      "notices": []
+    },
+    {
+      "name": "reborrow",
+      "version": "0.5.5",
+      "source": "https://crates.io/crates/reborrow/0.5.5",
+      "notices": [
+        "LICENSE"
+      ]
+    },
+    {
+      "name": "regex",
+      "version": "1.13.1",
+      "source": "https://crates.io/crates/regex/1.13.1",
+      "notices": [
+        "LICENSE-APACHE",
+        "LICENSE-MIT"
+      ]
+    },
+    {
+      "name": "regex-automata",
+      "version": "0.4.18",
+      "source": "https://crates.io/crates/regex-automata/0.4.18",
+      "notices": [
+        "LICENSE-APACHE",
+        "LICENSE-MIT"
+      ]
+    },
+    {
+      "name": "regex-syntax",
+      "version": "0.8.11",
+      "source": "https://crates.io/crates/regex-syntax/0.8.11",
+      "notices": [
+        "LICENSE-APACHE",
+        "LICENSE-MIT"
+      ]
+    },
+    {
+      "name": "rubato",
+      "version": "0.15.0",
+      "source": "https://crates.io/crates/rubato/0.15.0",
+      "notices": [
+        "LICENSE.txt"
+      ]
+    },
+    {
+      "name": "rustfft",
+      "version": "6.4.1",
+      "source": "https://crates.io/crates/rustfft/6.4.1",
+      "notices": [
+        "LICENSE-APACHE",
+        "LICENSE-MIT"
+      ]
+    },
+    {
+      "name": "rustversion",
+      "version": "1.0.23",
+      "source": "https://crates.io/crates/rustversion/1.0.23",
+      "notices": [
+        "LICENSE-APACHE",
+        "LICENSE-MIT"
+      ]
+    },
+    {
+      "name": "ryu",
+      "version": "1.0.23",
+      "source": "https://crates.io/crates/ryu/1.0.23",
+      "notices": [
+        "LICENSE-APACHE",
+        "LICENSE-BOOST"
+      ]
+    },
+    {
+      "name": "safetensors",
+      "version": "0.7.0",
+      "source": "https://crates.io/crates/safetensors/0.7.0",
+      "notices": [
+        "LICENSE"
+      ]
+    },
+    {
+      "name": "same-file",
+      "version": "1.0.6",
+      "source": "https://crates.io/crates/same-file/1.0.6",
+      "notices": [
+        "COPYING",
+        "LICENSE-MIT"
+      ]
+    },
+    {
+      "name": "scopeguard",
+      "version": "1.2.0",
+      "source": "https://crates.io/crates/scopeguard/1.2.0",
+      "notices": [
+        "LICENSE-APACHE",
+        "LICENSE-MIT"
+      ]
+    },
+    {
+      "name": "seq-macro",
+      "version": "0.3.6",
+      "source": "https://crates.io/crates/seq-macro/0.3.6",
+      "notices": [
+        "LICENSE-APACHE",
+        "LICENSE-MIT"
+      ]
+    },
+    {
+      "name": "serde",
+      "version": "1.0.229",
+      "source": "https://crates.io/crates/serde/1.0.229",
+      "notices": [
+        "LICENSE-APACHE",
+        "LICENSE-MIT"
+      ]
+    },
+    {
+      "name": "serde_core",
+      "version": "1.0.229",
+      "source": "https://crates.io/crates/serde_core/1.0.229",
+      "notices": [
+        "LICENSE-APACHE",
+        "LICENSE-MIT"
+      ]
+    },
+    {
+      "name": "serde_derive",
+      "version": "1.0.229",
+      "source": "https://crates.io/crates/serde_derive/1.0.229",
+      "notices": [
+        "LICENSE-APACHE",
+        "LICENSE-MIT"
+      ]
+    },
+    {
+      "name": "serde_json",
+      "version": "1.0.154",
+      "source": "https://crates.io/crates/serde_json/1.0.154",
+      "notices": [
+        "LICENSE-APACHE",
+        "LICENSE-MIT"
+      ]
+    },
+    {
+      "name": "serde_yaml",
+      "version": "0.9.34+deprecated",
+      "source": "https://crates.io/crates/serde_yaml/0.9.34+deprecated",
+      "notices": [
+        "LICENSE-APACHE",
+        "LICENSE-MIT"
+      ]
+    },
+    {
+      "name": "sharded-slab",
+      "version": "0.1.7",
+      "source": "https://crates.io/crates/sharded-slab/0.1.7",
+      "notices": [
+        "LICENSE"
+      ]
+    },
+    {
+      "name": "simdutf8",
+      "version": "0.1.5",
+      "source": "https://crates.io/crates/simdutf8/0.1.5",
+      "notices": [
+        "LICENSE-Apache",
+        "LICENSE-MIT"
+      ]
+    },
+    {
+      "name": "smallvec",
+      "version": "1.16.3",
+      "source": "https://crates.io/crates/smallvec/1.16.3",
+      "notices": [
+        "LICENSE-APACHE",
+        "LICENSE-MIT"
+      ]
+    },
+    {
+      "name": "spm_precompiled",
+      "version": "0.1.4",
+      "source": "https://crates.io/crates/spm_precompiled/0.1.4",
+      "notices": [
+        "LICENSE"
+      ]
+    },
+    {
+      "name": "stable_deref_trait",
+      "version": "1.2.1",
+      "source": "https://crates.io/crates/stable_deref_trait/1.2.1",
+      "notices": [
+        "LICENSE-APACHE",
+        "LICENSE-MIT"
+      ]
+    },
+    {
+      "name": "static_assertions",
+      "version": "1.1.0",
+      "source": "https://crates.io/crates/static_assertions/1.1.0",
+      "notices": [
+        "LICENSE-APACHE",
+        "LICENSE-MIT"
+      ]
+    },
+    {
+      "name": "strength_reduce",
+      "version": "0.2.4",
+      "source": "https://crates.io/crates/strength_reduce/0.2.4",
+      "notices": [
+        "LICENSE-APACHE",
+        "LICENSE-MIT"
+      ]
+    },
+    {
+      "name": "strsim",
+      "version": "0.11.1",
+      "source": "https://crates.io/crates/strsim/0.11.1",
+      "notices": [
+        "LICENSE"
+      ]
+    },
+    {
+      "name": "symphonia",
+      "version": "0.5.5",
+      "source": "https://crates.io/crates/symphonia/0.5.5",
+      "notices": []
+    },
+    {
+      "name": "symphonia-bundle-flac",
+      "version": "0.5.5",
+      "source": "https://crates.io/crates/symphonia-bundle-flac/0.5.5",
+      "notices": []
+    },
+    {
+      "name": "symphonia-bundle-mp3",
+      "version": "0.5.5",
+      "source": "https://crates.io/crates/symphonia-bundle-mp3/0.5.5",
+      "notices": []
+    },
+    {
+      "name": "symphonia-codec-aac",
+      "version": "0.5.5",
+      "source": "https://crates.io/crates/symphonia-codec-aac/0.5.5",
+      "notices": []
+    },
+    {
+      "name": "symphonia-codec-adpcm",
+      "version": "0.5.5",
+      "source": "https://crates.io/crates/symphonia-codec-adpcm/0.5.5",
+      "notices": []
+    },
+    {
+      "name": "symphonia-codec-alac",
+      "version": "0.5.5",
+      "source": "https://crates.io/crates/symphonia-codec-alac/0.5.5",
+      "notices": []
+    },
+    {
+      "name": "symphonia-codec-pcm",
+      "version": "0.5.5",
+      "source": "https://crates.io/crates/symphonia-codec-pcm/0.5.5",
+      "notices": []
+    },
+    {
+      "name": "symphonia-codec-vorbis",
+      "version": "0.5.5",
+      "source": "https://crates.io/crates/symphonia-codec-vorbis/0.5.5",
+      "notices": []
+    },
+    {
+      "name": "symphonia-core",
+      "version": "0.5.5",
+      "source": "https://crates.io/crates/symphonia-core/0.5.5",
+      "notices": []
+    },
+    {
+      "name": "symphonia-format-caf",
+      "version": "0.5.5",
+      "source": "https://crates.io/crates/symphonia-format-caf/0.5.5",
+      "notices": []
+    },
+    {
+      "name": "symphonia-format-isomp4",
+      "version": "0.5.5",
+      "source": "https://crates.io/crates/symphonia-format-isomp4/0.5.5",
+      "notices": []
+    },
+    {
+      "name": "symphonia-format-mkv",
+      "version": "0.5.5",
+      "source": "https://crates.io/crates/symphonia-format-mkv/0.5.5",
+      "notices": []
+    },
+    {
+      "name": "symphonia-format-ogg",
+      "version": "0.5.5",
+      "source": "https://crates.io/crates/symphonia-format-ogg/0.5.5",
+      "notices": []
+    },
+    {
+      "name": "symphonia-format-riff",
+      "version": "0.5.5",
+      "source": "https://crates.io/crates/symphonia-format-riff/0.5.5",
+      "notices": []
+    },
+    {
+      "name": "symphonia-metadata",
+      "version": "0.5.5",
+      "source": "https://crates.io/crates/symphonia-metadata/0.5.5",
+      "notices": []
+    },
+    {
+      "name": "symphonia-utils-xiph",
+      "version": "0.5.5",
+      "source": "https://crates.io/crates/symphonia-utils-xiph/0.5.5",
+      "notices": []
+    },
+    {
+      "name": "syn",
+      "version": "2.0.119",
+      "source": "https://crates.io/crates/syn/2.0.119",
+      "notices": [
+        "LICENSE-APACHE",
+        "LICENSE-MIT"
+      ]
+    },
+    {
+      "name": "syn",
+      "version": "3.0.9",
+      "source": "https://crates.io/crates/syn/3.0.9",
+      "notices": [
+        "LICENSE-APACHE",
+        "LICENSE-MIT"
+      ]
+    },
+    {
+      "name": "synstructure",
+      "version": "0.14.0",
+      "source": "https://crates.io/crates/synstructure/0.14.0",
+      "notices": [
+        "LICENSE"
+      ]
+    },
+    {
+      "name": "sysctl",
+      "version": "0.6.0",
+      "source": "https://crates.io/crates/sysctl/0.6.0",
+      "notices": []
+    },
+    {
+      "name": "thiserror",
+      "version": "1.0.69",
+      "source": "https://crates.io/crates/thiserror/1.0.69",
+      "notices": [
+        "LICENSE-APACHE",
+        "LICENSE-MIT"
+      ]
+    },
+    {
+      "name": "thiserror",
+      "version": "2.0.21",
+      "source": "https://crates.io/crates/thiserror/2.0.21",
+      "notices": [
+        "LICENSE-APACHE",
+        "LICENSE-MIT"
+      ]
+    },
+    {
+      "name": "thiserror-impl",
+      "version": "1.0.69",
+      "source": "https://crates.io/crates/thiserror-impl/1.0.69",
+      "notices": [
+        "LICENSE-APACHE",
+        "LICENSE-MIT"
+      ]
+    },
+    {
+      "name": "thiserror-impl",
+      "version": "2.0.21",
+      "source": "https://crates.io/crates/thiserror-impl/2.0.21",
+      "notices": [
+        "LICENSE-APACHE",
+        "LICENSE-MIT"
+      ]
+    },
+    {
+      "name": "thread_local",
+      "version": "1.1.10",
+      "source": "https://crates.io/crates/thread_local/1.1.10",
+      "notices": [
+        "LICENSE-APACHE",
+        "LICENSE-MIT"
+      ]
+    },
+    {
+      "name": "tokenizers",
+      "version": "0.23.2",
+      "source": "https://crates.io/crates/tokenizers/0.23.2",
+      "notices": [
+        "LICENSE"
+      ]
+    },
+    {
+      "name": "tracing",
+      "version": "0.1.44",
+      "source": "https://crates.io/crates/tracing/0.1.44",
+      "notices": [
+        "LICENSE"
+      ]
+    },
+    {
+      "name": "tracing-attributes",
+      "version": "0.1.31",
+      "source": "https://crates.io/crates/tracing-attributes/0.1.31",
+      "notices": [
+        "LICENSE"
+      ]
+    },
+    {
+      "name": "tracing-core",
+      "version": "0.1.36",
+      "source": "https://crates.io/crates/tracing-core/0.1.36",
+      "notices": [
+        "LICENSE"
+      ]
+    },
+    {
+      "name": "tracing-log",
+      "version": "0.2.0",
+      "source": "https://crates.io/crates/tracing-log/0.2.0",
+      "notices": [
+        "LICENSE"
+      ]
+    },
+    {
+      "name": "tracing-subscriber",
+      "version": "0.3.23",
+      "source": "https://crates.io/crates/tracing-subscriber/0.3.23",
+      "notices": [
+        "LICENSE"
+      ]
+    },
+    {
+      "name": "transpose",
+      "version": "0.2.3",
+      "source": "https://crates.io/crates/transpose/0.2.3",
+      "notices": [
+        "LICENSE-APACHE",
+        "LICENSE-MIT"
+      ]
+    },
+    {
+      "name": "unicode-ident",
+      "version": "1.0.27",
+      "source": "https://crates.io/crates/unicode-ident/1.0.27",
+      "notices": [
+        "LICENSE-APACHE",
+        "LICENSE-MIT",
+        "LICENSE-UNICODE"
+      ]
+    },
+    {
+      "name": "unicode-normalization-alignments",
+      "version": "0.1.12",
+      "source": "https://crates.io/crates/unicode-normalization-alignments/0.1.12",
+      "notices": [
+        "LICENSE-APACHE",
+        "LICENSE-MIT"
+      ]
+    },
+    {
+      "name": "unicode-segmentation",
+      "version": "1.13.3",
+      "source": "https://crates.io/crates/unicode-segmentation/1.13.3",
+      "notices": [
+        "LICENSE-APACHE",
+        "LICENSE-MIT"
+      ]
+    },
+    {
+      "name": "unicode_categories",
+      "version": "0.1.1",
+      "source": "https://crates.io/crates/unicode_categories/0.1.1",
+      "notices": [
+        "LICENSE-APACHE",
+        "LICENSE-MIT"
+      ]
+    },
+    {
+      "name": "unsafe-libyaml",
+      "version": "0.2.11",
+      "source": "https://crates.io/crates/unsafe-libyaml/0.2.11",
+      "notices": [
+        "LICENSE-MIT"
+      ]
+    },
+    {
+      "name": "valuable",
+      "version": "0.1.1",
+      "source": "https://crates.io/crates/valuable/0.1.1",
+      "notices": []
+    },
+    {
+      "name": "version_check",
+      "version": "0.9.5",
+      "source": "https://crates.io/crates/version_check/0.9.5",
+      "notices": [
+        "LICENSE-APACHE",
+        "LICENSE-MIT"
+      ]
+    },
+    {
+      "name": "walkdir",
+      "version": "2.5.0",
+      "source": "https://crates.io/crates/walkdir/2.5.0",
+      "notices": [
+        "COPYING",
+        "LICENSE-MIT"
+      ]
+    },
+    {
+      "name": "wasip2",
+      "version": "1.0.4+wasi-0.2.12",
+      "source": "https://crates.io/crates/wasip2/1.0.4+wasi-0.2.12",
+      "notices": []
+    },
+    {
+      "name": "winapi-util",
+      "version": "0.1.11",
+      "source": "https://crates.io/crates/winapi-util/0.1.11",
+      "notices": [
+        "COPYING",
+        "LICENSE-MIT"
+      ]
+    },
+    {
+      "name": "windows-link",
+      "version": "0.2.1",
+      "source": "https://crates.io/crates/windows-link/0.2.1",
+      "notices": [
+        "license-apache-2.0",
+        "license-mit"
+      ]
+    },
+    {
+      "name": "windows-sys",
+      "version": "0.45.0",
+      "source": "https://crates.io/crates/windows-sys/0.45.0",
+      "notices": [
+        "license-apache-2.0",
+        "license-mit"
+      ]
+    },
+    {
+      "name": "windows-sys",
+      "version": "0.61.2",
+      "source": "https://crates.io/crates/windows-sys/0.61.2",
+      "notices": [
+        "license-apache-2.0",
+        "license-mit"
+      ]
+    },
+    {
+      "name": "windows-targets",
+      "version": "0.42.2",
+      "source": "https://crates.io/crates/windows-targets/0.42.2",
+      "notices": [
+        "license-apache-2.0",
+        "license-mit"
+      ]
+    },
+    {
+      "name": "windows_aarch64_gnullvm",
+      "version": "0.42.2",
+      "source": "https://crates.io/crates/windows_aarch64_gnullvm/0.42.2",
+      "notices": []
+    },
+    {
+      "name": "windows_aarch64_msvc",
+      "version": "0.42.2",
+      "source": "https://crates.io/crates/windows_aarch64_msvc/0.42.2",
+      "notices": []
+    },
+    {
+      "name": "windows_i686_gnu",
+      "version": "0.42.2",
+      "source": "https://crates.io/crates/windows_i686_gnu/0.42.2",
+      "notices": []
+    },
+    {
+      "name": "windows_i686_msvc",
+      "version": "0.42.2",
+      "source": "https://crates.io/crates/windows_i686_msvc/0.42.2",
+      "notices": []
+    },
+    {
+      "name": "windows_x86_64_gnu",
+      "version": "0.42.2",
+      "source": "https://crates.io/crates/windows_x86_64_gnu/0.42.2",
+      "notices": [
+        "license-apache-2.0",
+        "license-mit"
+      ]
+    },
+    {
+      "name": "windows_x86_64_gnullvm",
+      "version": "0.42.2",
+      "source": "https://crates.io/crates/windows_x86_64_gnullvm/0.42.2",
+      "notices": []
+    },
+    {
+      "name": "windows_x86_64_msvc",
+      "version": "0.42.2",
+      "source": "https://crates.io/crates/windows_x86_64_msvc/0.42.2",
+      "notices": []
+    },
+    {
+      "name": "wit-bindgen",
+      "version": "0.57.1",
+      "source": "https://crates.io/crates/wit-bindgen/0.57.1",
+      "notices": []
+    },
+    {
+      "name": "xn",
+      "version": "0.2.11",
+      "source": "https://crates.io/crates/xn/0.2.11",
+      "notices": []
+    },
+    {
+      "name": "xn-gemm",
+      "version": "0.20.2",
+      "source": "https://crates.io/crates/xn-gemm/0.20.2",
+      "notices": [
+        "LICENSE"
+      ]
+    },
+    {
+      "name": "xn-gemm-c32",
+      "version": "0.20.2",
+      "source": "https://crates.io/crates/xn-gemm-c32/0.20.2",
+      "notices": [
+        "LICENSE"
+      ]
+    },
+    {
+      "name": "xn-gemm-c64",
+      "version": "0.20.2",
+      "source": "https://crates.io/crates/xn-gemm-c64/0.20.2",
+      "notices": [
+        "LICENSE"
+      ]
+    },
+    {
+      "name": "xn-gemm-common",
+      "version": "0.20.2",
+      "source": "https://crates.io/crates/xn-gemm-common/0.20.2",
+      "notices": [
+        "LICENSE"
+      ]
+    },
+    {
+      "name": "xn-gemm-f16",
+      "version": "0.20.2",
+      "source": "https://crates.io/crates/xn-gemm-f16/0.20.2",
+      "notices": [
+        "LICENSE"
+      ]
+    },
+    {
+      "name": "xn-gemm-f32",
+      "version": "0.20.2",
+      "source": "https://crates.io/crates/xn-gemm-f32/0.20.2",
+      "notices": [
+        "LICENSE"
+      ]
+    },
+    {
+      "name": "xn-gemm-f64",
+      "version": "0.20.2",
+      "source": "https://crates.io/crates/xn-gemm-f64/0.20.2",
+      "notices": [
+        "LICENSE"
+      ]
+    },
+    {
+      "name": "yoke",
+      "version": "0.8.3",
+      "source": "https://crates.io/crates/yoke/0.8.3",
+      "notices": [
+        "LICENSE"
+      ]
+    },
+    {
+      "name": "yoke-derive",
+      "version": "0.8.4",
+      "source": "https://crates.io/crates/yoke-derive/0.8.4",
+      "notices": [
+        "LICENSE"
+      ]
+    },
+    {
+      "name": "zerocopy",
+      "version": "0.8.63",
+      "source": "https://crates.io/crates/zerocopy/0.8.63",
+      "notices": [
+        "LICENSE-APACHE",
+        "LICENSE-BSD",
+        "LICENSE-MIT"
+      ]
+    },
+    {
+      "name": "zerocopy-derive",
+      "version": "0.8.63",
+      "source": "https://crates.io/crates/zerocopy-derive/0.8.63",
+      "notices": [
+        "LICENSE-APACHE",
+        "LICENSE-BSD",
+        "LICENSE-MIT"
+      ]
+    },
+    {
+      "name": "zerofrom",
+      "version": "0.1.8",
+      "source": "https://crates.io/crates/zerofrom/0.1.8",
+      "notices": [
+        "LICENSE"
+      ]
+    },
+    {
+      "name": "zerofrom-derive",
+      "version": "0.1.8",
+      "source": "https://crates.io/crates/zerofrom-derive/0.1.8",
+      "notices": [
+        "LICENSE"
+      ]
+    },
+    {
+      "name": "zmij",
+      "version": "1.0.23",
+      "source": "https://crates.io/crates/zmij/1.0.23",
+      "notices": [
+        "LICENSE-MIT"
+      ]
+    }
+  ]
+}

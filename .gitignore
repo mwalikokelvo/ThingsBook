@@ -1,0 +1,53 @@
+# Private user data and credentials
+*.thingsbook
+*.tbvoices
+*.dpapi
+*.jks
+*.keystore
+*.p12
+*.pfx
+*.pem
+.env
+.env.*
+!.env.example
+
+# Books, recordings, and model weights
+*.epub
+*.pdf
+*.mobi
+*.azw
+*.azw3
+*.mp3
+*.m4a
+*.wav
+*.flac
+*.safetensors
+*.onnx
+*.pt
+*.pth
+
+# Generated installers and archives
+*.exe
+*.apk
+*.aab
+*.msi
+*.zip
+*.7z
+
+# Build output and dependency caches
+node_modules/
+target/
+dist/
+build/
+out/
+.gradle/
+__pycache__/
+*.py[cod]
+
+# Local IDE and OS files
+.idea/
+.vscode/
+.DS_Store
+Thumbs.db
+*.log
+*.tmp

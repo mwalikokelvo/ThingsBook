@@ -1,0 +1,18 @@
+async function testImportRecovery(baseline=false){
+ const q=id=>document.getElementById(id),check=(v,m)=>{if(!v)throw Error(m)},submit=()=>upload({preventDefault(){}});
+ await unlock({preventDefault(){}});fillShelves(q('shelf-select'));const select=files=>{if(!q('upload-dialog').open)openUpload();const transfer=new DataTransfer();files.forEach(file=>transfer.items.add(file));q('book-files').files=transfer.files;fileSummary()};const text=name=>new File(['A private chapter for '+name],name+'.txt');
+ select([text('Good first'),new File(['not a PDF'],'Broken.pdf'),text('Good later')]);await submit();const first=books.length;await submit();const retried=books.length;
+ if(baseline)return {firstImportCount:first,afterRetryCount:retried,duplicateRetry:retried>first};
+ check(first===2&&retried===2,'Retry duplicated saved books or valid later book was skipped');check(q('book-files').files.length===1&&q('book-files').files[0].name==='Broken.pdf','Only failed file retained');check(q('upload-error').textContent.includes('valid PDF'),'Useful per-file diagnosis');
+ const original=File.prototype.arrayBuffer;let release,entered;const gate=new Promise(r=>release=r),started=new Promise(r=>entered=r);
+ File.prototype.arrayBuffer=async function(){if(this.name==='Pause first.txt'){entered();await gate;}return original.call(this)};
+ select([text('Pause first'),text('Pause next'),text('Pause last')]);const active=submit();await started;check(q('book-files').disabled,'Selection must be stable during import');q('pause-import').click();release();await active;File.prototype.arrayBuffer=original;
+ check(books.length===3&&q('book-files').files.length===2,'Pause finishes current book and retains remaining');check(q('save-book').textContent.includes('Continue'),'Continue action missing');await submit();check(books.length===5,'Continue imported remaining only');
+ const oldTransaction=transaction;let writes=0;transaction=(stores,action)=>{if(stores.includes('books')&&++writes===2)throw new DOMException('Synthetic full storage','QuotaExceededError');return oldTransaction(stores,action)};
+ select([text('Space first'),text('Space next'),text('Space last')]);try{await submit()}finally{transaction=oldTransaction}check(books.length===6&&q('book-files').files.length===2,'Quota failure retained failed and unprocessed books');await submit();check(books.length===8,'Quota retry duplicates');
+ let badBuffer;File.prototype.arrayBuffer=async function(){const data=await original.call(this);if(this.name==='Bad wipe.pdf')badBuffer=data;return data};select([new File(['invalid PDF bytes'],'Bad wipe.pdf')]);try{await submit()}finally{File.prototype.arrayBuffer=original}check([...new Uint8Array(badBuffer)].every(v=>v===0),'Invalid file buffer was not cleared');
+ let releaseLock,enteredLock;const lockGate=new Promise(r=>releaseLock=r),lockStarted=new Promise(r=>enteredLock=r);File.prototype.arrayBuffer=async function(){if(this.name==='Lock first.txt'){enteredLock();await lockGate}return original.call(this)};
+ select([text('Lock first'),text('Lock next')]);const importing=submit();await lockStarted;const closing=lock();releaseLock();await importing;await closing;File.prototype.arrayBuffer=original;
+ check(!key&&(await allMetadata()).length===9,'Privacy close must pause before next file and preserve saves');check(!q('import-status').textContent&&!q('upload-error').textContent,'Privacy close leaked import names');await unlock({preventDefault(){}});check(books.length===9,'Restart/open lost committed books');
+ return {retryOnlyFailures:true,validFilesContinue:true,pauseAndContinue:true,stableSelection:true,quotaRetry:true,invalidBufferCleared:true,privacyPause:true,retainedLibrary:true};
+}

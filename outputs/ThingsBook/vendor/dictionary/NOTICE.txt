@@ -1,0 +1,3 @@
+Offline dictionary derived from WordNet 3.0. Copyright 2006 Princeton University. Original source: https://wordnetcode.princeton.edu/3.0/WordNet-3.0.tar.gz
+Source SHA256: 640db279c949a88f61f851dd54ebbb22d003f8b90b85267042ef85a3781d3a52
+Definitions and related words only; no etymologies. Each initial-letter shard loads on demand.
