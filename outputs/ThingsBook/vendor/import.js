@@ -23,7 +23,7 @@ window.ThingsImport = (() => {
     // Kindle (MOBI 6, KF8/AZW3, combined): PalmDB type/creator 'BOOKMOBI'; converted to EPUB on import.
     if(bytes.length>68&&String.fromCharCode(...bytes.subarray(60,68))==='BOOKMOBI')return 'MOBI';
     // FictionBook (FB2): an XML book whose root element is <FictionBook>; converted to EPUB on import.
-    if(/<FictionBook[\s>]/.test(String.fromCharCode(...bytes.subarray(0,4096))))return 'FB2';
+    {const start=bytes[0]===0xef&&bytes[1]===0xbb&&bytes[2]===0xbf?3:0;if(/^\s*(?:<\?xml[^?]*\?>\s*)?(?:<!--[\s\S]*?-->\s*)*<FictionBook[\s>]/.test(String.fromCharCode(...bytes.subarray(start,start+4096))))return 'FB2';}
     if(bytes[0]===80&&bytes[1]===75&&bytes[2]===3&&bytes[3]===4){
       let container;
       try{container=member(data,'META-INF/container.xml',1024*1024);const doc=xml(container);if([...doc.getElementsByTagName('*')].some(n=>n.localName==='rootfile'&&n.getAttribute('full-path')))return 'EPUB';}

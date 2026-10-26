@@ -90,6 +90,10 @@ async function main() {
   const message = await until(page, () => /damaged or incomplete/.test($('reader-message')?.textContent || '') && $('reader-message').textContent, null, 30000);
   report.push(`a damaged piece stops opening with: "${message.trim().slice(0, 70)}"`);
   await page.evaluate(() => transaction(['chunks'], tx => tx.objectStore('chunks').put(window.__original)));
+  // Locking the library stops a range source from decrypting anything further.
+  const lockedRead = await page.evaluate(async id => { const source = await bookSource(id); await source.read(0, 16); await lock(); try { await source.read(5 * 1024 * 1024, 5 * 1024 * 1024 + 16); return 'decrypted after lock'; } catch (e) { return e.message; } }, id);
+  assert.match(lockedRead, /locked/);
+  report.push('after the library locks, an open range source refuses to decrypt further pieces');
   assert.deepEqual(errors, []);
   await context.close();
   console.log(report.map(line => `PASS ${line}`).join('\n'));

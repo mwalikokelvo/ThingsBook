@@ -87,6 +87,10 @@ async function main() {
   const rejected = await importFile(page, 'two.fb2.zip', Buffer.from(two));
   assert.equal(rejected.added, 0); assert(rejected.error, 'an archive with two books is rejected');
   report.push('an archive with two FB2 books is rejected; nothing stored');
+  // A text file that only mentions the FB2 root element is still a text book.
+  const text = await importFile(page, 'about-fb2.txt', Buffer.from('Notes on e-book formats.\nAn FB2 file starts with <FictionBook xmlns=...> after its XML declaration.\n'));
+  assert.equal(text.added, 1, text.error); assert.equal(await page.evaluate(id => books.find(b => b.id === id).format, text.id), 'TXT');
+  report.push('a .txt that merely mentions <FictionBook> imports as text, not FB2');
   assert.deepEqual(problems, []);
   report.push('no Content Security Policy violations or page errors');
   await context.close();

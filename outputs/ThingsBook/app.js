@@ -273,6 +273,7 @@ async function bookSource(id) {
   const piece = index => {
     let pending = cache.get(index);
     if (pending) cache.delete(index);
+    else if (key !== vaultKey) pending = Promise.reject(new Error('The library is locked.')); /* no decryption after locking */
     else { pending = ThingsChunks.piece(record,vaultKey,i => getChunk(id,i),index); stats.decrypted++; pending.catch(() => cache.delete(index)); }
     cache.set(index,pending);
     while (cache.size > 4) cache.delete(cache.keys().next().value);
