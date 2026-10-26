@@ -24,8 +24,8 @@ Source changes merged into `main`; not yet packaged. Build the Windows EXE and A
   books): pages are listed and each page's text is shown when chosen; the PDF is read by byte range.
 - **Recognized text is kept.** Text recognized on a scanned PDF page is saved, encrypted, with the book
   (per page; the book and page are sealed inside and checked), so the page shows it again after
-  closing or restarting and library search includes it. Removing a book removes it. Recognized
-  text is not yet included in backups; recognize pages again after restoring.
+  closing or restarting and library search includes it. Removing a book removes it. It travels in
+  version 2 backups; on restore, records that do not verify for their book and page are dropped.
 
 ### Faster and lighter
 - New books are stored as 4 MiB encrypted pieces (IndexedDB "chunks" store; each piece is bound

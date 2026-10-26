@@ -45,6 +45,8 @@ async function main() {
     const body = Buffer.from(crypto.randomBytes(BOOK_MB * 1024 * 1024 * 3 / 4).toString('base64'));
     const id = await importText(a.page, `Book ${i}.txt`, body); originals.set(id, sha(body));
   }
+  const [firstId] = originals.keys();
+  await a.page.evaluate(id => saveRecognizedPage(id, 4, {text:'Recognized words travel with the backup.', confidence:88}), firstId);
   const [download] = await Promise.all([a.page.waitForEvent('download'), a.page.evaluate(() => backup())]);
   const backupPath = path.join(temp, 'library.thingsbook'); await download.saveAs(backupPath);
   const size = fs.statSync(backupPath).size;
@@ -67,8 +69,9 @@ async function main() {
   assert.equal(await b.page.evaluate(() => books.length), BOOKS);
   for (const [id, hash] of originals) assert.equal(await digest(b.page, id), hash, `book ${id} restored byte-exact`);
   assert.equal(await b.page.evaluate(() => request(db.transaction('staging').objectStore('staging').count())), 0);
+  assert.equal((await b.page.evaluate(id => loadRecognizedPage(id, 4), firstId))?.text, 'Recognized words travel with the backup.', 'recognized text restored');
   assert(largest <= 4 * 1024 * 1024 + 64, `restore read ${largest} bytes of the backup at once`);
-  report.push(`restored into a profile with its own library: ${BOOKS} books byte-exact, the old book replaced, staging emptied; never read more than ${(largest / 2 ** 20).toFixed(1)} MiB of the backup at once; renderer memory ${baseline} → peak ${peak} MiB while restoring ${(size / 2 ** 20).toFixed(0)} MiB`);
+  report.push(`restored into a profile with its own library: ${BOOKS} books byte-exact plus recognized page text, the old book replaced, staging emptied; never read more than ${(largest / 2 ** 20).toFixed(1)} MiB of the backup at once; renderer memory ${baseline} → peak ${peak} MiB while restoring ${(size / 2 ** 20).toFixed(0)} MiB`);
 
   // 3. A damaged copy is refused after the password check; the restored library stays as it is.
   const damaged = fs.readFileSync(backupPath); damaged[Math.floor(damaged.length * 0.7)] ^= 1;

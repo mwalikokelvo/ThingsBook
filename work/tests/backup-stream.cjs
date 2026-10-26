@@ -124,6 +124,18 @@ async function main() {
   const allowed = JSON.parse('[' + java.match(/beginTransfer[\s\S]*?Arrays\.asList\(([^)]*)\)\.contains\(mime\)/)[1] + ']');
   for (const blob of [v1, v2]) assert(allowed.includes(blob.type), `Android export allowlist is missing ${blob.type}`);
 
+  // Recognized page text travels with its book in version 2, read normally or indexed; version 1 refuses it.
+  const ocr = [{page:0, ...(await ThingsVault.sealJSON({book:lib.records[0].id, page:0, text:'first page words'}, key))}, {page:7, ...(await ThingsVault.sealJSON({book:lib.records[0].id, page:7, text:'eighth page words'}, key))}];
+  const withText = {...lib, records:lib.records.map((r, i) => i === 0 ? {...r, ocr} : r)};
+  const textBackup = await streamOf(withText, created);
+  for (const lazy of [false, true]) {
+    const back = await ThingsBackup.read(textBackup, {lazy});
+    assert.deepEqual(back.books.map(b => b.ocr.length), [2, 0, 0]);
+    assert.equal((await ThingsVault.readJSON(back.books[0].ocr[1], key)).text, 'eighth page words'); assert.equal(back.books[0].ocr[1].page, 7);
+    if (lazy) assert(same(await ThingsBackup.load(textBackup, back.books[2].file), lib.records[2].file.data), 'book bytes still located correctly after the text frames');
+  }
+  assert.throws(() => ThingsBackup.legacy(withText.records, lib.config, created), /version 2/);
+
   // A book removed mid-backup stops the export instead of writing a partial library.
   assert.match(await codeOf(ThingsBackup.stream(lib.config, ['gone'], async () => undefined, created)), /changed while the backup/);
 

@@ -322,6 +322,9 @@ async function stageRestore(pending,vaultKey) {
   await clearStaging();
   try {
     for (const record of pending.books) {
+      // Recognized text is a convenience: keep the records that verify for this book and page, drop the rest.
+      record.verifiedOcr = [];
+      for (const item of record.ocr || []) { try { const value = await ThingsVault.readJSON(item,vaultKey); if (value.book === record.id && value.page === item.page) record.verifiedOcr.push({book:record.id,page:item.page,iv:item.iv,data:item.data}); } catch {} }
       if (record.chunks) {
         if (!ThingsChunks.valid(record.chunks) || record.parts?.length !== record.chunks.count) throw new Error('damaged');
         for (const [index,part] of record.parts.entries()) {
@@ -344,7 +347,7 @@ async function stageRestore(pending,vaultKey) {
 function swapStaged(tx,pending) {
   const books = tx.objectStore('books'), chunks = tx.objectStore('chunks'), staging = tx.objectStore('staging'), byId = new Map(pending.books.map(record => [record.id,record]));
   books.clear(); chunks.clear(); tx.objectStore('ocr').clear(); /* recognized text belonged to the replaced library */
-  for (const record of pending.books) if (record.chunks) books.put({id:record.id,meta:record.meta,chunks:record.chunks});
+  for (const record of pending.books) { if (record.chunks) books.put({id:record.id,meta:record.meta,chunks:record.chunks}); for (const item of record.verifiedOcr || []) tx.objectStore('ocr').put(item); }
   const cursor = staging.openCursor();
   cursor.onsuccess = () => { const current = cursor.result; if (!current) { staging.clear(); return; } const value = current.value; if (value.index < 0) books.put({id:value.book,meta:byId.get(value.book).meta,file:{iv:value.iv,data:value.data}}); else chunks.put(value); current.continue(); };
 }
@@ -418,7 +421,7 @@ async function recordSizes() { return new Promise((resolve,reject) => {
 }); }
 // Small libraries of whole-file books keep backup version 1 so older releases can restore them.
 // Larger libraries, and any library with chunked books (which version 1 cannot hold), stream as version 2.
-async function backupBlob(created) { const sizes = await recordSizes(); if (!sizes.some(s => s.chunked) && ThingsBackup.fitsLegacy(sizes,config)) return ThingsBackup.legacy(await allRecords(),config,created); return ThingsBackup.stream(config,sizes.map(s => s.id),async id => { const record = await getRecord(id); if (record?.chunks) { /* two passes: piece details first, then one piece's bytes at a time */ record.partInfo = []; for (let index = 0; index < record.chunks.count; index++) { const part = await getChunk(id,index); if (!part) throw new Error('A book file is incomplete. Restore it from a backup before backing up.'); record.partInfo.push({book:part.book,index:part.index,iv:part.iv,size:part.data.byteLength}); } record.partData = index => getChunk(id,index); } return record; },created); }
+async function backupBlob(created) { const sizes = await recordSizes(), recognizedText = await request(db.transaction('ocr').objectStore('ocr').count()) > 0; if (!recognizedText && !sizes.some(s => s.chunked) && ThingsBackup.fitsLegacy(sizes,config)) return ThingsBackup.legacy(await allRecords(),config,created); return ThingsBackup.stream(config,sizes.map(s => s.id),async id => { const record = await getRecord(id); if (record) record.ocr = (await request(db.transaction('ocr').objectStore('ocr').getAll(chunkRange(id)))).map(r => ({page:r.page,iv:r.iv,data:r.data})); if (record?.chunks) { /* two passes: piece details first, then one piece's bytes at a time */ record.partInfo = []; for (let index = 0; index < record.chunks.count; index++) { const part = await getChunk(id,index); if (!part) throw new Error('A book file is incomplete. Restore it from a backup before backing up.'); record.partInfo.push({book:part.book,index:part.index,iv:part.iv,size:part.data.byteLength}); } record.partData = index => getChunk(id,index); } return record; },created); }
 async function backup() { if (busy || !key) return; busy = true; try { await closeReader(); await metadataQueue; const created = new Date().toISOString(); await downloadBlob(await backupBlob(created),`ThingsBook-backup-${created.slice(0,10)}.thingsbook`); $('backup-dialog').close(); $('backup-recovery').value = ''; toast(window.ThingsBookAndroid ? 'Choose where to save your encrypted backup. Keep its recovery code separately.' : 'Encrypted backup exported. Keep the recovery code separately for another device.'); } catch { toast('Could not export the backup. Check free space, close other apps and try again.'); } finally { busy = false; resetIdle(); } }
 async function restoreFile(file) { if (!file || busy) return; busy = true; try {
   const restored = await ThingsBackup.read(file,{lazy:true}); // version 1 or 2, fully validated; version 2 books are indexed, not loaded

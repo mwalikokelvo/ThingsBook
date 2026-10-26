@@ -16,7 +16,7 @@ const fakeDb = {transaction(stores,mode) { let pending = 0;
   const tx = {objectStore(name) { const map = memory[name]; return {
   get(key){ return request(() => map.get(storeKey(name,key))); },
   openCursor(){ const req = {}, values = [...map.values()]; let index = 0; pending++; const next = () => queueMicrotask(() => { if (index < values.length) { req.result = {value:values[index++],continue:next}; req.onsuccess(); } else { req.result = null; req.onsuccess(); pending--; } }); next(); return req; },
-  getAll(){ return request(() => [...map.values()]); },
+  getAll(range){ return request(() => range && range.lower !== undefined ? [...map.entries()].filter(([k]) => inRange(name,k,range)).map(([,v]) => v) : [...map.values()]); },
   getAllKeys(){ return request(() => [...map.keys()].map(k => compound(name) ? JSON.parse(k) : k)); },
   count(){ return request(() => map.size); },
   put(value,id){ map.set(compound(name) ? storeKey(name,[value.book,name === 'ocr' ? value.page : value.index]) : id || value.id, structuredClone(value)); },
