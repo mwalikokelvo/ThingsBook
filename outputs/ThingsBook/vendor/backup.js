@@ -11,6 +11,7 @@
 //   "ThingsBook encrypted backup v2\n"
 //   frame  header  {format, version:2, created, config, books:N}
 //   N x  [frame  {id, meta, file:{segments:[{iv, size}]}}, then the raw ciphertext bytes of each segment]
+//        (a chunked book adds chunks:{count, bytes} and has one segment per stored piece)
 //   frame  trailer {end:true, books:N}
 //
 // A frame is a 4-byte little-endian length followed by that many bytes of UTF-8 JSON.
@@ -23,6 +24,7 @@ const ThingsBackup = (() => {
   const MAX_FRAME = 32 * 1024 * 1024; // a book frame holds its sealed metadata, including a cover
   const MAX_SEGMENT = 1024 * 1024 * 1024;
   const MAX_BOOKS = 100000;
+  const MAX_PARTS = 1000000;
   const encoder = new TextEncoder(), decoder = new TextDecoder('utf-8', {fatal:true});
 
   function failure(code, message) { const error = new Error(message); error.code = code; return error; }
@@ -69,8 +71,9 @@ const ThingsBackup = (() => {
     return chars <= limit;
   }
 
-  // Version 1, byte-for-byte the format earlier releases wrote.
+  // Version 1, byte-for-byte the format earlier releases wrote. It cannot hold chunked books.
   function legacy(records, config, created = new Date().toISOString()) {
+    if (records.some(r => r.chunks)) throw new Error('Chunked books need backup version 2.');
     const payload = {format:FORMAT, version:1, created, config:packConfig(config), books:records.map(r => ({id:r.id, meta:pack(r.meta), file:pack(r.file)}))};
     return new Blob([JSON.stringify(payload)], {type:'application/json'});
   }
@@ -88,6 +91,14 @@ const ThingsBackup = (() => {
     for (const id of ids) {
       const record = await load(id);
       if (!record || record.id !== id) throw new Error('A book changed while the backup was being written. Try again.');
+      if (record.chunks) {
+        // Chunked book: record.parts are its stored pieces, in order, still sealed.
+        const parts = record.parts;
+        if (!Array.isArray(parts) || parts.length !== record.chunks.count || parts.some((p, i) => p.book !== id || p.index !== i)) throw new Error('A book file is incomplete. Restore it from a backup before backing up.');
+        const pieces = parts.map(p => bytesOf(p.data));
+        blob = new Blob([blob, ...frame({id, meta:pack(record.meta), chunks:{count:record.chunks.count, bytes:record.chunks.bytes}, file:{segments:parts.map((p, i) => ({iv:b64(p.iv), size:pieces[i].byteLength}))}}), ...pieces]);
+        continue;
+      }
       const data = bytesOf(record.file.data);
       blob = new Blob([blob, ...frame({id, meta:pack(record.meta), file:{segments:[{iv:b64(record.file.iv), size:data.byteLength}]}}), data]);
     }
@@ -119,13 +130,24 @@ const ThingsBackup = (() => {
     const config = unpackConfig(header.config), books = [];
     for (let i = 0; i < count; i++) {
       const entry = await next();
-      const segments = entry.file?.segments;
-      if (!Array.isArray(segments) || !segments.length) throw invalid();
-      if (segments.length > 1) throw newer(); // reserved for chunked book storage
-      const [segment] = segments, iv = unb64(segment.iv);
-      if (iv.length !== 12 || !Number.isInteger(segment.size) || segment.size < 16 || segment.size > MAX_SEGMENT) throw invalid();
-      const data = await bytes(segment.size);
-      books.push({id:validId(entry.id), meta:unpack(entry.meta), file:{iv, data:data.buffer}});
+      const id = validId(entry.id), meta = unpack(entry.meta), segments = entry.file?.segments;
+      if (!Array.isArray(segments) || !segments.length || segments.length > MAX_PARTS) throw invalid();
+      const sealed = segments.map(segment => {
+        const iv = unb64(segment?.iv);
+        if (iv.length !== 12 || !Number.isInteger(segment.size) || segment.size < 16 || segment.size > MAX_SEGMENT) throw invalid();
+        return {iv, size:segment.size};
+      });
+      if (entry.chunks !== undefined) {
+        // Chunked book: one segment per stored piece; each piece carries a 16-byte AES-GCM tag.
+        const {count, bytes:plain} = entry.chunks || {};
+        if (!Number.isInteger(count) || count !== sealed.length || !Number.isInteger(plain) || plain < 0 || sealed.reduce((n, s) => n + s.size, 0) !== plain + 16 * count) throw invalid();
+        const parts = [];
+        for (const [index, {iv, size}] of sealed.entries()) parts.push({book:id, index, iv, data:(await bytes(size)).buffer});
+        books.push({id, meta, chunks:{count, bytes:plain}, parts});
+        continue;
+      }
+      if (sealed.length > 1) throw newer(); // unknown multi-part layout
+      books.push({id, meta, file:{iv:sealed[0].iv, data:(await bytes(sealed[0].size)).buffer}});
     }
     const trailer = await next();
     if (trailer.end !== true || trailer.books !== count || position !== file.size) throw invalid();
