@@ -35,7 +35,9 @@ window.ThingsImport = (() => {
       catch{}
       finally{types?.fill(0);}
       // Zipped FictionBook (.fb2.zip, .fbz): exactly one .fb2 inside. Names are listed without extracting.
-      try{const names=[];ThingsArchiveLib.unzipSync(bytes,{filter:file=>{names.push(file.name);return false;}});if(names.filter(n=>/\.fb2$/i.test(n)).length===1)return 'FB2';}catch{}
+      try{const names=[];ThingsArchiveLib.unzipSync(bytes,{filter:file=>{names.push(file.name);return false;}});if(names.filter(n=>/\.fb2$/i.test(n)).length===1)return 'FB2';
+      // Comic book archive (.cbz): only page images, plus an optional ComicInfo.xml.
+      if(typeof ThingsComic!=='undefined'&&ThingsComic.pages(names))return 'CBZ';}catch{}
       throw new Error('This file does not appear to be an EPUB archive.');
     }
     // Compound File (legacy .doc, or an encrypted .docx): not readable without Word.
@@ -43,7 +45,7 @@ window.ThingsImport = (() => {
     if(extension==='pdf')throw new Error('This file does not appear to be a valid PDF.');
     if(extension==='epub')throw new Error('This file does not appear to be an EPUB archive.');
     if(extension==='txt')return 'TXT';
-    throw new Error('Choose PDF, EPUB or TXT books, or DRM-free Kindle (MOBI/AZW3) Word (.docx) and FictionBook (.fb2) books; the file contents were not recognized.');
+    throw new Error('Choose PDF, EPUB or TXT books, or DRM-free Kindle (MOBI/AZW3) Word (.docx), FictionBook (.fb2) and comic (.cbz) books; the file contents were not recognized.');
   }
   function xml(bytes) {
     const text = ReaderCore.decodeText(bytes);
