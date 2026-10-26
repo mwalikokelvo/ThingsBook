@@ -14,6 +14,11 @@ Source changes merged into `main`; not yet packaged. Build the Windows EXE and A
   Legacy .doc and password-protected files explain how to save a usable copy.
 - **FictionBook (.fb2, .fb2.zip, .fbz)** import as EPUB, including footnotes, poems and
   non-UTF-8 encodings such as windows-1251.
+- **OpenDocument text (.odt)** from LibreOffice, OpenOffice or Google Docs imports as EPUB: chapters at
+  top-level headings, bold/italic/underline and super/subscript from the document's styles, numbered
+  and bulleted lists, tables, links and embedded images. Footnotes are gathered into a linked Notes
+  chapter; generated tables of contents, comments and tracked deletions are left out.
+  Password-protected documents explain how to save a usable copy.
 - **Markdown (.md) and saved web pages (.html, .htm)** import as EPUB, with chapters at top-level
   headings, tables, code, links and embedded images. Title and author come from Markdown front matter
   or the page's meta tags; a page's article is kept without its site menus. Nothing in the file runs

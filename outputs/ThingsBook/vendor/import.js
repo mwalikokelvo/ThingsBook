@@ -34,6 +34,8 @@ window.ThingsImport = (() => {
       try{types=member(data,'[Content_Types].xml',1024*1024);if(new TextDecoder().decode(types).includes('wordprocessingml.document.main+xml'))return 'DOCX';}
       catch{}
       finally{types?.fill(0);}
+      // OpenDocument text (.odt): converted to EPUB on import.
+      if(typeof ThingsOdt!=='undefined'&&ThingsOdt.isOdt(bytes))return 'ODT';
       // Zipped FictionBook (.fb2.zip, .fbz): exactly one .fb2 inside. Names are listed without extracting.
       try{const names=[];ThingsArchiveLib.unzipSync(bytes,{filter:file=>{names.push(file.name);return false;}});if(names.filter(n=>/\.fb2$/i.test(n)).length===1)return 'FB2';
       // Comic book archive (.cbz): only page images, plus an optional ComicInfo.xml.
@@ -48,7 +50,7 @@ window.ThingsImport = (() => {
     if(extension==='pdf')throw new Error('This file does not appear to be a valid PDF.');
     if(extension==='epub')throw new Error('This file does not appear to be an EPUB archive.');
     if(extension==='txt')return 'TXT';
-    throw new Error('Choose PDF, EPUB or TXT books, or DRM-free Kindle (MOBI/AZW3) Word (.docx), FictionBook (.fb2), comic (.cbz), Markdown (.md) and web page (.html) books; the file contents were not recognized.');
+    throw new Error('Choose PDF, EPUB or TXT books, or DRM-free Kindle (MOBI/AZW3) Word (.docx), OpenDocument (.odt), FictionBook (.fb2), comic (.cbz), Markdown (.md) and web page (.html) books; the file contents were not recognized.');
   }
   function xml(bytes) {
     const text = ReaderCore.decodeText(bytes);
