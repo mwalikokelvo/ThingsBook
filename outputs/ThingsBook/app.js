@@ -176,7 +176,10 @@ async function upload(event) {
       if(run.paused){remaining.push(...files.slice(index));break;}
       const file=files[index];let data,stage='read';count=index+1;$('save-book').textContent=`Encrypting book ${count} of ${files.length}…`;$('import-status').textContent=`${saved} saved · Reading ${file.name} (${count} of ${files.length})`;
       try{
-        data=await file.arrayBuffer();const format=window.ThingsImport?.format?window.ThingsImport.format(file.name,data):file.name.split('.').pop().toUpperCase();
+        data=await file.arrayBuffer();let format=window.ThingsImport?.format?window.ThingsImport.format(file.name,data):file.name.split('.').pop().toUpperCase();
+        // Kindle books are converted to EPUB once, here; the stored book is that EPUB.
+        let storedName=file.name,sourceFormat=null;
+        if(format==='MOBI'){$('save-book').textContent=`Converting Kindle book ${count} of ${files.length}…`;const converted=await ThingsKindle.toEPUB(data);new Uint8Array(data).fill(0);data=converted.epub.buffer.slice(converted.epub.byteOffset,converted.epub.byteOffset+converted.epub.byteLength);format='EPUB';sourceFormat=converted.kind;storedName=file.name.replace(/\.[^.]*$/,'')+'.epub';}
         if(format==='PDF'&&!decoder.decode(new Uint8Array(data).subarray(0,1024)).includes('%PDF-'))throw new Error('This file does not appear to be a valid PDF.');
         if(format==='EPUB'&&new Uint8Array(data)[0]!==80)throw new Error('This file does not appear to be an EPUB archive.');
         stage='save';
@@ -186,7 +189,7 @@ async function upload(event) {
           catch {fallbackCount++;}
         }
         if(format==='PDF'&&window.ThingsImport){$('save-book').textContent=`Reading PDF details ${count} of ${files.length}…`;embedded=await window.ThingsImport.pdf(data);if(embedded.warnings.length)fallbackCount++;}
-        const meta = {id:crypto.randomUUID(),title:files.length === 1 && details.title ? details.title : embedded.title || window.SanctuaryCore?.title(file.name)||file.name.replace(/\.[^.]+$/,'').replace(/[_-]/g,' '),author:details.author || embedded.author || 'Unknown author',rating:details.rating,color:files.length > 1 ? palette[(books.length + count) % palette.length] : details.color,shelfId:details.shelfId,format,size:file.size,filename:file.name,added:Date.now(),status:'unread',notes:'',series:embedded.series||'',seriesNumber:embedded.seriesNumber||'',year:embedded.year||null,language:embedded.language||'',cover:embedded.cover||null,pages:embedded.pages||null};
+        const meta = {id:crypto.randomUUID(),title:files.length === 1 && details.title ? details.title : embedded.title || window.SanctuaryCore?.title(file.name)||file.name.replace(/\.[^.]+$/,'').replace(/[_-]/g,' '),author:details.author || embedded.author || 'Unknown author',rating:details.rating,color:files.length > 1 ? palette[(books.length + count) % palette.length] : details.color,shelfId:details.shelfId,format,size:data.byteLength,filename:storedName,...(sourceFormat?{sourceFormat,sourceFilename:file.name}:{}),added:Date.now(),status:'unread',notes:'',series:embedded.series||'',seriesNumber:embedded.seriesNumber||'',year:embedded.year||null,language:embedded.language||'',cover:embedded.cover||null,pages:embedded.pages||null};
         if(!shelves.some(s=>s.id===meta.shelfId)){if(!shelves.length)await saveShelves([{id:crypto.randomUUID(),name:'Imported Books'}]);meta.shelfId=shelves[0].id;}
         // Pieces first, one transaction each; the book record is written last, so a book only
         // appears once every piece is stored. A failure removes the pieces already written.

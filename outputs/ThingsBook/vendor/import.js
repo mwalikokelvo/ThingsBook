@@ -19,7 +19,9 @@ window.ThingsImport = (() => {
   }
   function format(name,data){
     const bytes=new Uint8Array(data),extension=String(name).split('.').pop().toLowerCase();
-    if(new TextDecoder().decode(bytes.subarray(0,1024)).includes('%PDF-'))return 'PDF';
+    if(new TextDecoder().decode(bytes.subarray(0,1024)).includes('%PDF-'))return 'PDF'
+    // Kindle (MOBI 6, KF8/AZW3, combined): PalmDB type/creator 'BOOKMOBI'; converted to EPUB on import.
+    if(bytes.length>68&&String.fromCharCode(...bytes.subarray(60,68))==='BOOKMOBI')return 'MOBI';
     if(bytes[0]===80&&bytes[1]===75&&bytes[2]===3&&bytes[3]===4){
       let container;
       try{container=member(data,'META-INF/container.xml',1024*1024);const doc=xml(container);if([...doc.getElementsByTagName('*')].some(n=>n.localName==='rootfile'&&n.getAttribute('full-path')))return 'EPUB';}
@@ -30,7 +32,7 @@ window.ThingsImport = (() => {
     if(extension==='pdf')throw new Error('This file does not appear to be a valid PDF.');
     if(extension==='epub')throw new Error('This file does not appear to be an EPUB archive.');
     if(extension==='txt')return 'TXT';
-    throw new Error('Choose PDF, EPUB or TXT books; the file contents were not recognized.');
+    throw new Error('Choose PDF, EPUB, Kindle (MOBI/AZW3) or TXT books; the file contents were not recognized.');
   }
   function xml(bytes) {
     const text = ReaderCore.decodeText(bytes);

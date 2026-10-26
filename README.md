@@ -25,6 +25,7 @@ No private books, backups, recordings, personal voice packs, model weights, acco
 - `work/build-apps.py` — maintained Windows and Android packaging entry point.
 - `work/tests/` — release regression and integration checks.
 - `core/` — Rust/UniFFI native-core foundation and personal-voice runtime source.
+- `work/vendor-foliate-mobi.py` — re-vendors foliate-js's MIT-licensed MOBI/KF8 parser (`vendor/foliate-mobi.js`), used to convert DRM-free Kindle books to EPUB on import.
 - `Start-here.txt` — 1.12.5 release notes, limitations, and update guidance.
 
 ## Build
