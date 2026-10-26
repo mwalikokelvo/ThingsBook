@@ -18,9 +18,10 @@ const sha = buf => crypto.createHash('sha256').update(buf).digest('hex');
 const textBook = (label, bytes) => { let s = ''; let i = 0; while (s.length < bytes) s += `${label} paragraph ${i++}: the quick brown fox reads privately.\n`; return Buffer.from(s.slice(0, bytes)); };
 const OLD_BOOK = textBook('Old', 6 * 1024 * 1024 + 7), NEW_BOOK = textBook('New', 9 * 1024 * 1024 + 11);
 
+const servers = new Set();
 function serve(dir) {
   const code = `import sys; sys.path.insert(0, ${JSON.stringify(dir)}); import server; from http.server import ThreadingHTTPServer; ThreadingHTTPServer(('127.0.0.1', 8765), server.Handler).serve_forever()`;
-  const proc = spawn('python3', ['-c', code], {stdio:'ignore'});
+  const proc = spawn('python3', ['-c', code], {stdio:'ignore'}); servers.add(proc);
   return new Promise(resolve => setTimeout(() => resolve(proc), 800));
 }
 async function open(dir) {
@@ -40,11 +41,13 @@ async function importFile(page, name, buffer) {
   await page.waitForFunction(n => books.length === n + 1, before, {timeout:30000});
   return page.evaluate(n => books[n].id, before);
 }
+// Polls an async page check until it resolves truthy (page.waitForFunction would accept the pending Promise itself).
+async function until(page, check, arg, timeout = 60000) { const end = Date.now() + timeout; for (;;) { if (await page.evaluate(check, arg)) return; if (Date.now() > end) throw new Error(`Timed out waiting for: ${check}`); await new Promise(r => setTimeout(r, 500)); } }
 const readBook = (page, id) => page.evaluate(async id => { const b = new Uint8Array(await (await bookBlob(id)).arrayBuffer()); const h = await crypto.subtle.digest('SHA-256', b); return {length:b.length, hash:[...new Uint8Array(h)].map(x => x.toString(16).padStart(2, '0')).join('')}; }, id);
 const unlockWith = async (page, password) => { await page.evaluate(p => { $('password').value = p; }, password); await page.evaluate(() => unlock({preventDefault(){}})); await page.waitForFunction(() => !!key, null, {timeout:30000}); };
 
 async function main() {
-  const report = [];
+  const report = []; const push = report.push.bind(report); report.push = line => { console.error(`.. ${line.slice(0, 90)}`); return push(line); };
   // 1. The released app creates a library and imports a book.
   let app = await open(released);
   assert.equal(await app.page.evaluate(() => typeof DB_VERSION), 'undefined', 'released code really is the old version');
@@ -67,6 +70,14 @@ async function main() {
   assert.equal(await app.page.evaluate(id => books.find(b => b.id === id).notes, oldId), 'note from 1.12.5');
   assert.deepEqual(await readBook(app.page, oldId), {length:OLD_BOOK.length, hash:sha(OLD_BOOK)});
   report.push('new code: upgraded to DB version 2 with a "chunks" store; unlocked with saved device access; old book and note intact');
+  // Background conversion (when this build has it): the old whole-file book becomes chunks by itself.
+  const converts = await app.page.evaluate(() => typeof migrateBooks === 'function');
+  if (converts) {
+    await until(app.page, id => getRecord(id).then(r => !!r.chunks && !r.file), oldId);
+    assert.deepEqual(await readBook(app.page, oldId), {length:OLD_BOOK.length, hash:sha(OLD_BOOK)});
+    assert.equal(await app.page.evaluate(id => books.find(b => b.id === id).notes, oldId), 'note from 1.12.5');
+    report.push('background conversion: the 1.12.5 book was converted to 2 pieces while idle; bytes and note unchanged');
+  }
 
   // 3. A new import is chunked; reading it is exact; a metadata save no longer rewrites the file.
   const newId = await importFile(app.page, 'New.txt', NEW_BOOK);
@@ -81,7 +92,7 @@ async function main() {
   // 4. Backup holds both layouts; removing a book removes its pieces; restore brings both back.
   await app.page.evaluate(async () => { window.__backup = await backupBlob(new Date().toISOString()); });
   const head = await app.page.evaluate(async () => ({v2:(await window.__backup.slice(0, 31).text()) === ThingsBackup.MAGIC, size:window.__backup.size, kinds:(await ThingsBackup.read(window.__backup)).books.map(b => b.chunks ? `chunked:${b.parts.length}` : 'whole')}));
-  assert.equal(head.v2, true); assert.deepEqual(head.kinds.sort(), ['chunked:3', 'whole']);
+  assert.equal(head.v2, true); assert.deepEqual(head.kinds.sort(), converts ? ['chunked:2', 'chunked:3'] : ['chunked:3', 'whole']);
   await app.page.evaluate(id => transaction(['books', 'chunks'], tx => deleteBooks(tx, [id])), newId);
   assert.equal(await app.page.evaluate(id => request(db.transaction('chunks').objectStore('chunks').getAllKeys()).then(k => k.filter(x => x[0] === id).length), newId), 0);
   await app.page.evaluate(() => restoreFile(new File([window.__backup], 'library.thingsbook')));
@@ -93,15 +104,15 @@ async function main() {
   assert.deepEqual(await readBook(app.page, oldId), {length:OLD_BOOK.length, hash:sha(OLD_BOOK)});
   assert.deepEqual(await readBook(app.page, newId), {length:NEW_BOOK.length, hash:sha(NEW_BOOK)});
   assert.equal(await app.page.evaluate(id => books.find(b => b.id === id).notes, newId), 'chunked note');
-  report.push(`backup: ${(head.size / 2 ** 20).toFixed(1)} MiB version 2 file with one whole-file and one 3-piece book; deleting a book removed its pieces; restore rejected a wrong password, then brought both books back byte-exact`);
+  report.push(`backup: ${(head.size / 2 ** 20).toFixed(1)} MiB version 2 file with ${converts ? 'a 2-piece and a 3-piece book' : 'one whole-file and one 3-piece book'}; deleting a book removed its pieces; restore rejected a wrong password, then brought both books back byte-exact`);
 
   // 5. Stray pieces from an interrupted import disappear at the next unlock.
   await app.page.evaluate(() => transaction(['chunks'], tx => tx.objectStore('chunks').put({book:'interrupted', index:0, iv:new Uint8Array(12), data:new ArrayBuffer(64)})));
   await app.page.evaluate(() => lock()); await app.page.waitForFunction(() => !key);
   await unlockWith(app.page, PASSWORD);
-  await app.page.waitForFunction(() => request(db.transaction('chunks').objectStore('chunks').getAllKeys()).then(k => !k.some(x => x[0] === 'interrupted')), null, {timeout:10000});
-  assert.equal(await app.page.evaluate(() => request(db.transaction('chunks').objectStore('chunks').count())), 3);
-  report.push('interrupted import: stray pieces removed at unlock; the real book\'s 3 pieces kept');
+  await until(app.page, () => request(db.transaction('chunks').objectStore('chunks').getAllKeys()).then(k => !k.some(x => x[0] === 'interrupted')), null, 15000);
+  assert.equal(await app.page.evaluate(() => request(db.transaction('chunks').objectStore('chunks').count())), converts ? 5 : 3);
+  report.push(`interrupted import: stray pieces removed at unlock; the real books' ${converts ? 5 : 3} pieces kept`);
   assert.deepEqual(app.errors, []);
   await app.close();
 
@@ -116,7 +127,6 @@ async function main() {
   }
   report.push(`downgrade to released app: unlock ${down.key ? 'works' : `fails (${down.error || 'no message'}; device access ${down.device})`}, ${down.books} books listed; whole-file book ${oldReads}; chunked book ${newReads}`);
   await app.close();
-  fs.rmSync(profile, {recursive:true, force:true});
   console.log(report.map(line => `PASS ${line}`).join('\n'));
 }
-main().catch(e => { console.error(e); process.exitCode = 1; fs.rmSync(profile, {recursive:true, force:true}); });
+main().catch(e => { console.error(e); process.exitCode = 1; }).finally(() => { for (const proc of servers) proc.kill(); fs.rmSync(profile, {recursive:true, force:true}); setTimeout(() => process.exit(), 500).unref(); });
