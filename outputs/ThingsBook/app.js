@@ -176,11 +176,14 @@ async function upload(event) {
       if(run.paused){remaining.push(...files.slice(index));break;}
       const file=files[index];let data,stage='read';count=index+1;$('save-book').textContent=`Encrypting book ${count} of ${files.length}…`;$('import-status').textContent=`${saved} saved · Reading ${file.name} (${count} of ${files.length})`;
       try{
-        data=await file.arrayBuffer();let format=window.ThingsImport?.format?window.ThingsImport.format(file.name,data):file.name.split('.').pop().toUpperCase();
+        // PDFs are recognized from their first kilobyte and streamed: details are read by byte range and
+        // pieces are encrypted straight from the file, so a large PDF is never held in memory whole.
+        const streamed=decoder.decode(new Uint8Array(await file.slice(0,1024).arrayBuffer())).includes('%PDF-');
+        data=streamed?null:await file.arrayBuffer();let format=streamed?'PDF':window.ThingsImport?.format?window.ThingsImport.format(file.name,data):file.name.split('.').pop().toUpperCase();
         // Kindle books and Word documents are converted to EPUB once, here; the stored book is that EPUB.
         let storedName=file.name,sourceFormat=null;
         if(format==='MOBI'||format==='DOCX'){$('save-book').textContent=`Converting ${format==='MOBI'?'Kindle book':'Word document'} ${count} of ${files.length}…`;const converted=format==='MOBI'?await ThingsKindle.toEPUB(data):await ThingsDocx.toEPUB(data,{name:file.name});new Uint8Array(data).fill(0);data=converted.epub.buffer.slice(converted.epub.byteOffset,converted.epub.byteOffset+converted.epub.byteLength);format='EPUB';sourceFormat=converted.kind;storedName=file.name.replace(/\.[^.]*$/,'')+'.epub';}
-        if(format==='PDF'&&!decoder.decode(new Uint8Array(data).subarray(0,1024)).includes('%PDF-'))throw new Error('This file does not appear to be a valid PDF.');
+        if(format==='PDF'&&!streamed)throw new Error('This file does not appear to be a valid PDF.');
         if(format==='EPUB'&&new Uint8Array(data)[0]!==80)throw new Error('This file does not appear to be an EPUB archive.');
         stage='save';
         let embedded = {};
@@ -188,14 +191,14 @@ async function upload(event) {
           try {embedded = await window.ThingsImport.epub(data, makeCover); if (embedded.warnings.length) fallbackCount++;}
           catch {fallbackCount++;}
         }
-        if(format==='PDF'&&window.ThingsImport){$('save-book').textContent=`Reading PDF details ${count} of ${files.length}…`;embedded=await window.ThingsImport.pdf(data);if(embedded.warnings.length)fallbackCount++;}
-        const meta = {id:crypto.randomUUID(),title:files.length === 1 && details.title ? details.title : embedded.title || window.SanctuaryCore?.title(file.name)||file.name.replace(/\.[^.]+$/,'').replace(/[_-]/g,' '),author:details.author || embedded.author || 'Unknown author',rating:details.rating,color:files.length > 1 ? palette[(books.length + count) % palette.length] : details.color,shelfId:details.shelfId,format,size:data.byteLength,filename:storedName,...(sourceFormat?{sourceFormat,sourceFilename:file.name}:{}),added:Date.now(),status:'unread',notes:'',series:embedded.series||'',seriesNumber:embedded.seriesNumber||'',year:embedded.year||null,language:embedded.language||'',cover:embedded.cover||null,pages:embedded.pages||null};
+        if(format==='PDF'&&window.ThingsImport){$('save-book').textContent=`Reading PDF details ${count} of ${files.length}…`;embedded=await window.ThingsImport.pdf(null,{source:{size:file.size,read:async(begin,end)=>new Uint8Array(await file.slice(begin,end).arrayBuffer())}});if(embedded.warnings.length)fallbackCount++;}
+        const meta = {id:crypto.randomUUID(),title:files.length === 1 && details.title ? details.title : embedded.title || window.SanctuaryCore?.title(file.name)||file.name.replace(/\.[^.]+$/,'').replace(/[_-]/g,' '),author:details.author || embedded.author || 'Unknown author',rating:details.rating,color:files.length > 1 ? palette[(books.length + count) % palette.length] : details.color,shelfId:details.shelfId,format,size:data ? data.byteLength : file.size,filename:storedName,...(sourceFormat?{sourceFormat,sourceFilename:file.name}:{}),added:Date.now(),status:'unread',notes:'',series:embedded.series||'',seriesNumber:embedded.seriesNumber||'',year:embedded.year||null,language:embedded.language||'',cover:embedded.cover||null,pages:embedded.pages||null};
         if(!shelves.some(s=>s.id===meta.shelfId)){if(!shelves.length)await saveShelves([{id:crypto.randomUUID(),name:'Imported Books'}]);meta.shelfId=shelves[0].id;}
         // Pieces first, one transaction each; the book record is written last, so a book only
         // appears once every piece is stored. A failure removes the pieces already written.
         importingBooks.add(meta.id);
         try {
-          const chunks = await ThingsChunks.write(data,key,meta.id,part => transaction(['chunks'],tx => tx.objectStore('chunks').put(part)));
+          const chunks = await ThingsChunks.write(data ?? file,key,meta.id,part => transaction(['chunks'],tx => tx.objectStore('chunks').put(part)));
           const record = {id:meta.id,meta:await sealJSON(meta),chunks};
           await transaction(['books'],tx => tx.objectStore('books').add(record));
         } catch (error) { await removeChunks(meta.id).catch(() => {}); throw error; }
@@ -261,7 +264,7 @@ async function nativeTransfer(blob, filename, mode) {
   catch(e) { bridge.cancelTransfer(); throw e; }
 }
 async function downloadBlob(blob, filename) { if (window.ThingsBookAndroid) return nativeTransfer(blob,filename,'export'); const url = URL.createObjectURL(blob), a = el('a'); a.href = url; a.download = filename; document.body.append(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(url),60000); }
-async function bookBlob(id) { const record = await getRecord(id), book = books.find(b => b.id === id); if (!record || !book) throw new Error('Missing book file'); const mime = book.format === 'PDF' ? 'application/pdf' : book.format === 'EPUB' ? 'application/epub+zip' : 'text/plain'; if (record.chunks) return new Blob(await ThingsChunks.read(record,key,index => getChunk(id,index)),{type:mime}); return new Blob([await unseal(record.file)],{type:mime}); }
+async function bookBlob(id) { const record = await getRecord(id), book = books.find(b => b.id === id); if (!record || !book) throw new Error('Missing book file'); const mime = book.format === 'PDF' ? 'application/pdf' : book.format === 'EPUB' ? 'application/epub+zip' : 'text/plain'; if (record.chunks) { let blob = new Blob([],{type:mime}); for (let index = 0; index < record.chunks.count; index++) blob = new Blob([blob,await ThingsChunks.piece(record,key,i => getChunk(id,i),index)],{type:mime}); return blob; } /* one decrypted piece held at a time */ return new Blob([await unseal(record.file)],{type:mime}); }
 // A chunked book read by byte range: only the pieces asked for are decrypted, and the last few are
 // cached. Used to open large PDFs without loading the whole file. close() drops the cache.
 async function bookSource(id) {

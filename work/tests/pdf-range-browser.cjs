@@ -50,12 +50,17 @@ async function main() {
   await page.waitForFunction(() => typeof db !== 'undefined' && !!db, null, {timeout:20000});
   await page.evaluate(() => { $('password').value = $('confirm-password').value = 'Range test password 1'; return unlock({preventDefault(){}}); });
   await page.waitForFunction(() => !!key);
+  // Import streams: record the largest single read of file data (Blob/File.arrayBuffer) during import.
+  await page.evaluate(() => { window.__largestRead = 0; const read = Blob.prototype.arrayBuffer; Blob.prototype.arrayBuffer = function () { window.__largestRead = Math.max(window.__largestRead, this.size); return read.call(this); }; });
   await page.setInputFiles('#book-files', {name:'Large.pdf', mimeType:'application/pdf', buffer:pdf});
   await page.evaluate(() => upload({preventDefault(){}}));
   const id = await until(page, () => books[0]?.id, null, 120000);
   const pieces = await page.evaluate(id => getRecord(id).then(r => r.chunks.count), id);
+  const imported = await page.evaluate(id => ({largest:window.__largestRead, pages:books.find(b => b.id === id).pages, cover:!!books.find(b => b.id === id).cover}), id);
+  assert(imported.largest <= 4 * 1024 * 1024, `import read ${imported.largest} bytes at once`);
+  assert.equal(imported.pages, PAGES); assert(imported.cover, 'first-page cover rendered from a byte-range read');
   assert.equal(pieces, Math.ceil(pdf.length / (4 * 1024 * 1024)));
-  const report = [`imported a ${(pdf.length / 2 ** 20).toFixed(1)} MiB, ${PAGES}-page PDF as ${pieces} encrypted pieces`];
+  const report = [`imported a ${(pdf.length / 2 ** 20).toFixed(1)} MiB, ${PAGES}-page PDF as ${pieces} encrypted pieces, never reading more than ${(imported.largest / 2 ** 20).toFixed(1)} MiB at once; page count and first-page cover extracted by range`];
 
   // Open: pdf.js reads the trailer, catalog and first page, not the whole file.
   await page.evaluate(id => readBook(id), id);

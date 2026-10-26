@@ -84,13 +84,14 @@ window.ThingsImport = (() => {
       return result;
     } finally {for (const bytes of buffers) bytes.fill(0);}
   }
-  async function pdf(data,{timeoutMs=10000}={}) {
+  // source: {size, read(begin,end)} reads a PDF by byte range instead of from data held in memory.
+  async function pdf(data,{timeoutMs=10000,source=null}={}) {
     const result={title:'',author:'',year:null,language:'',pages:null,cover:null,warnings:[]};
     const controller=new AbortController();let doc,render,canvas,timer;
     const destroy=()=>{try{if(doc)Promise.resolve(doc.destroy()).catch(()=>{});}catch{}};
     const expired=new Promise((_,reject)=>{timer=setTimeout(()=>{controller.abort();try{render?.cancel();}catch{}destroy();reject(Object.assign(new Error('PDF details took too long'),{name:'TimeoutError'}));},Math.max(1,Math.min(10000,timeoutMs)));});
     const job=(async()=>{
-      doc=await ThingsReader.inspectPdf(data,controller.signal);if(controller.signal.aborted){await doc.destroy();return;}
+      doc=await ThingsReader.inspectPdf(data,controller.signal,source);if(controller.signal.aborted){await doc.destroy();return;}
       result.pages=Number.isSafeInteger(doc.numPages)&&doc.numPages>0?doc.numPages:null;
       try{const metadata=await doc.getMetadata();if(controller.signal.aborted)return;const info=metadata.info||{},xmp=metadata.metadata;const value=(name)=>{try{return xmp?.get(name);}catch{return '';}};
         result.title=clean(typeof value('dc:title')==='string'?value('dc:title'):info.Title);
