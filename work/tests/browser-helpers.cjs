@@ -19,7 +19,7 @@ const probe = () => new Promise(resolve => {
 async function serve(dir) {
   if (await probe()) throw new Error('Port 8765 is already in use (a leftover ThingsBook server?). Stop it, then rerun this test.');
   const code = `import sys; sys.path.insert(0, ${JSON.stringify(dir)}); import server; from http.server import ThreadingHTTPServer; ThreadingHTTPServer(('127.0.0.1', 8765), server.Handler).serve_forever()`;
-  const proc = spawn('python3', ['-c', code], {stdio:'ignore'});
+  const proc = spawn(process.platform === 'win32' ? 'python' : 'python3', ['-c', code], {stdio:'ignore'});
   servers.add(proc);
   let exited = false; proc.on('exit', () => { exited = true; servers.delete(proc); });
   for (let i = 0; i < 40 && !exited; i++) { if (await probe()) return {stop:() => new Promise(resolve => { if (exited) return resolve(); proc.once('exit', resolve); proc.kill(); })}; await new Promise(r => setTimeout(r, 100)); }

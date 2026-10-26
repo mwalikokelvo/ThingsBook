@@ -7,6 +7,10 @@
 //   node work/run-tests.cjs            run all portable tests
 //   node work/run-tests.cjs research   run only tests whose name contains "research"
 //   node work/run-tests.cjs --list     show what would run / be skipped, without running
+//   --require-browser                  fail (not skip) when a Chromium test cannot run for lack of Playwright
+//   --no-skip                          fail when any selected test is skipped
+//
+// Playwright is found as usual or in work/test-tools (npm install --prefix work/test-tools playwright@1.63.0).
 //
 // Exit code is 1 if any test that ran failed; skipped tests never fail the run.
 
@@ -18,7 +22,9 @@ const root = path.resolve(__dirname, '..');
 const testsDir = path.join(__dirname, 'tests');
 const desktopDir = path.join(__dirname, 'thingsbook-desktop');
 const args = process.argv.slice(2);
-const listOnly = args.includes('--list');
+const listOnly = args.includes('--list'), requireBrowser = args.includes('--require-browser'), noSkip = args.includes('--no-skip');
+const testTools = path.join(__dirname, 'test-tools', 'node_modules');
+const childEnv = fs.existsSync(testTools) ? {...process.env, NODE_PATH:[testTools, process.env.NODE_PATH].filter(Boolean).join(path.delimiter)} : process.env;
 const filters = args.filter(a => !a.startsWith('--'));
 const TIMEOUT_MS = 120000;
 
@@ -29,8 +35,8 @@ const requirements = {
     reason: 'needs `npm ci` in work/thingsbook-desktop (node_modules missing)'
   },
   'provider-1125.cjs': {
-    ok: () => process.platform === 'win32',
-    reason: 'needs Windows device protection (DPAPI)'
+    ok: () => process.platform === 'win32' && fs.existsSync(path.join(desktopDir, 'native', 'ProviderProtection.exe')),
+    reason: 'needs Windows and native/ProviderProtection.exe (built by `work/build-apps.py windows`)'
   }
 };
 
@@ -62,19 +68,24 @@ for (const file of files) {
   if (listOnly) { results.pass.push({ file, listed: true }); continue; }
   const started = Date.now();
   const r = spawnSync(process.execPath, [path.join(testsDir, file)], {
-    cwd: root, encoding: 'utf8', timeout: TIMEOUT_MS, maxBuffer: 16 * 1024 * 1024
+    cwd: root, encoding: 'utf8', timeout: TIMEOUT_MS, maxBuffer: 16 * 1024 * 1024, env: childEnv
   });
   const secs = ((Date.now() - started) / 1000).toFixed(1);
-  const ok = r.status === 0 && !r.error;
+  // A test that exits 0 after printing "SKIP: <reason>" did not run; count it as skipped, not passed.
+  const selfSkip = r.status === 0 && !r.error && /^SKIP:\s*(.*)/.exec((r.stdout || '').trim());
+  if (selfSkip && !(requireBrowser && /playwright/i.test(selfSkip[1]))) { results.skip.push({file, reason: selfSkip[1] || 'skipped itself', printed: true}); console.log(`SKIP  ${file}  - ${selfSkip[1]}`); continue; }
+  if (selfSkip) r.stderr = `Chromium test did not run: ${selfSkip[1]} Install it with: npm install --prefix work/test-tools playwright@1.63.0, then node work/test-tools/node_modules/playwright/cli.js install chromium`;
+  const ok = r.status === 0 && !r.error && !selfSkip;
   const tail = ((r.stdout || '') + (r.stderr || '')).trim().split('\n').slice(-6).join('\n');
   (ok ? results.pass : results.fail).push({ file, secs, tail, timedOut: r.error && r.error.code === 'ETIMEDOUT' });
   console.log(`${ok ? 'PASS' : 'FAIL'}  ${file}  (${secs}s)${!ok ? (r.error && r.error.code === 'ETIMEDOUT' ? '  TIMED OUT' : '') : ''}`);
   if (!ok) console.log(tail.split('\n').map(l => '      ' + l.slice(0, 200)).join('\n'));
 }
 
-for (const s of results.skip) console.log(`SKIP  ${s.file}  - ${s.reason}`);
+for (const s of results.skip) if (!s.printed) console.log(`SKIP  ${s.file}  - ${s.reason}`);
 if (listOnly) {
   for (const p of results.pass) console.log(`RUN   ${p.file}`);
 }
 console.log(`\n${results.pass.length} ${listOnly ? 'would run' : 'passed'}, ${results.fail.length} failed, ${results.skip.length} skipped`);
+if (noSkip && results.skip.length && !listOnly) { console.log(`--no-skip: ${results.skip.length} selected test(s) did not run`); process.exit(1); }
 process.exit(results.fail.length ? 1 : 0);

@@ -9,17 +9,20 @@ usage (from the repository root, on Windows):
 Steps, stopping at the first failure:
   1. checks the checkout is `main`, clean, and not behind origin/main;
   2. sets the version everywhere (work/set-version.py) and dates the CHANGELOG section;
-  3. runs the portable regression suite (node work/run-tests.cjs);
+  3. runs the regression suite, including the Chromium tests (Playwright is installed once into
+     work/test-tools) and the upgrade test against the previous release;
   4. installs the desktop runtime if missing (npm ci) and builds the Rust core (cargo build --release);
-  5. builds the Windows EXE and the signed Android APK (work/build-apps.py), unless skipped;
+  5. builds the Windows EXE (then tests its device-protection helper) and the signed Android APK
+     (work/build-apps.py), unless skipped;
   6. writes outputs/ThingsBook-<version>-SHA256SUMS.txt and -Release-notes.md;
   7. commits "Release <version>" and tags v<version> (push them yourself, or pass --push).
+If a step fails before the commit, the version changes are undone, so you can fix it and rerun.
 
 Android signing uses your original key (work/thingsbook-signing by default, or --signing); it is
 read only by apksigner and never copied. Install the APK over the existing app: do not uninstall,
 which would remove the private on-device library.
 """
-import argparse, hashlib, json, re, shutil, subprocess, sys
+import argparse, hashlib, json, os, re, shutil, subprocess, sys, tempfile
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -40,6 +43,29 @@ def tool(name):
     if not found:
         raise SystemExit(f'{name} is not on PATH; install it and retry.')
     return found
+
+
+PLAYWRIGHT = 'playwright@1.63.0'
+# The last release before tags were used: ThingsBook 1.12.5. Later releases are found by their v* tags.
+LEGACY_RELEASE = 'c740c89'
+
+
+def test_tools():
+    # The Chromium tests need Playwright; it is installed once into work/test-tools (ignored by git).
+    tools = ROOT / 'work/test-tools'
+    env = {**os.environ, 'NODE_PATH': os.pathsep.join(filter(None, [str(tools / 'node_modules'), os.environ.get('NODE_PATH')]))}
+    if subprocess.run([tool('node'), '-e', "require('playwright')"], cwd=ROOT, env=env, capture_output=True).returncode != 0:
+        print('Installing the browser test tools (once)…', flush=True)
+        run(tool('npm'), 'install', '--prefix', tools, '--no-audit', '--no-fund', PLAYWRIGHT)
+    probe = "const fs=require('fs');process.exit(fs.existsSync(require('playwright').chromium.executablePath())?0:1)"
+    if subprocess.run([tool('node'), '-e', probe], cwd=ROOT, env=env, capture_output=True).returncode != 0:
+        cli = subprocess.run([tool('node'), '-e', "console.log(require.resolve('playwright/cli.js'))"], cwd=ROOT, env=env, capture_output=True, text=True, check=True).stdout.strip()
+        run(tool('node'), cli, 'install', 'chromium')
+
+
+def previous_release(version):
+    tags = [t for t in git('tag', '--list', 'v*', '--sort=-v:refname').splitlines() if t != f'v{version}']
+    return tags[0] if tags else LEGACY_RELEASE
 
 
 def notes(version):
@@ -72,9 +98,31 @@ def main():
     if git('rev-list', '--count', 'HEAD..origin/main') != '0':
         raise SystemExit('main is behind origin/main; run git pull first.')
 
-    # 2-3. Version, then the tests against the versioned tree.
+    # 2-3. Version, then the tests against the versioned tree. If anything fails before the release
+    # commit, the version changes are undone so the same checkout can simply be run again.
     run(sys.executable, ROOT / 'work/set-version.py', version, '--release-notes')
-    run(tool('node'), ROOT / 'work/run-tests.cjs')
+    try:
+        built = build(args, version)
+    except BaseException:
+        if not args.allow_dirty:
+            print('Release stopped; undoing the version changes.', flush=True)
+            subprocess.run(['git', 'checkout', '--', '.'], cwd=ROOT)
+        raise
+    finish(args, version, built)
+
+
+def build(args, version):
+    test_tools()
+    previous = previous_release(version)
+    released = Path(tempfile.mkdtemp(prefix='thingsbook-previous-'))
+    run('git', 'worktree', 'add', '--detach', '-f', released / 'tree', previous)
+    try:
+        env = {**os.environ, 'THINGSBOOK_RELEASED_DIR': str(released / 'tree/outputs/ThingsBook')}
+        print(f'> node work/run-tests.cjs --require-browser   (upgrade from {previous})', flush=True)
+        subprocess.run([tool('node'), ROOT / 'work/run-tests.cjs', '--require-browser'], cwd=ROOT, env=env, check=True)
+    finally:
+        subprocess.run(['git', 'worktree', 'remove', '--force', str(released / 'tree')], cwd=ROOT)
+        shutil.rmtree(released, ignore_errors=True)
 
     # 4-5. Builds.
     built = []
@@ -84,6 +132,8 @@ def main():
             run(tool('npm'), 'ci', cwd=desktop)
         run(tool('cargo'), 'build', '--release', '--locked', '--bin', 'thingsbook-core', cwd=ROOT / 'core')
         run(sys.executable, ROOT / 'work/build-apps.py', 'windows')
+        # Tests of helpers the Windows build compiles (Windows device protection).
+        run(tool('node'), ROOT / 'work/run-tests.cjs', 'provider-1125', '--no-skip')
         built.append(OUT / f'ThingsBook-Independent-{version}.exe')
     if not args.skip_android:
         extra = [f'--{k}={v}' for k, v in (('android-tools', args.android_tools), ('jdk', args.jdk), ('sdk', args.sdk), ('signing', args.signing), ('voice-pack', args.voice_pack)) if v]
@@ -92,7 +142,10 @@ def main():
     for file in built:
         if not file.is_file():
             raise SystemExit(f'Expected build output is missing: {file}')
+    return built
 
+
+def finish(args, version, built):
     # 6. Checksums and notes.
     sums = OUT / f'ThingsBook-{version}-SHA256SUMS.txt'
     sums.write_text(''.join(f'{hashlib.sha256(f.read_bytes()).hexdigest()}  {f.name}\n' for f in built), encoding='utf-8')

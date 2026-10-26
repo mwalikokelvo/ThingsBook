@@ -61,3 +61,6 @@ test-signing/
 
 # Private Android voice packs bundled with --voice-pack: never committed (the repository is public).
 private-voices/
+
+# Playwright for the Chromium tests, installed by work/release.py (npm install --prefix work/test-tools).
+work/test-tools/
