@@ -40,7 +40,7 @@ function classify(file) {
   if (!fs.statSync(full).isFile()) return null;
   if (/-helpers?\.cjs$/.test(file)) return null; // shared code for tests, not a test
   if (ext === '.py') return { skip: 'Python launcher for the packaged Windows EXE' };
-  if (ext === '.js') return { skip: 'browser-page test; needs a browser harness' };
+  if (ext === '.js') return { skip: 'browser-page script; run in Chromium by pages-browser.cjs' };
   if (ext !== '.cjs') return null;
   const source = fs.readFileSync(full, 'utf8');
   if (/electron/.test(file) || /require\(\s*['"]electron['"]\s*\)/.test(source) || /-live[-.]/.test(file)) {
