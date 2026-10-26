@@ -177,9 +177,9 @@ async function upload(event) {
       const file=files[index];let data,stage='read';count=index+1;$('save-book').textContent=`Encrypting book ${count} of ${files.length}…`;$('import-status').textContent=`${saved} saved · Reading ${file.name} (${count} of ${files.length})`;
       try{
         data=await file.arrayBuffer();let format=window.ThingsImport?.format?window.ThingsImport.format(file.name,data):file.name.split('.').pop().toUpperCase();
-        // Kindle books are converted to EPUB once, here; the stored book is that EPUB.
+        // Kindle books and Word documents are converted to EPUB once, here; the stored book is that EPUB.
         let storedName=file.name,sourceFormat=null;
-        if(format==='MOBI'){$('save-book').textContent=`Converting Kindle book ${count} of ${files.length}…`;const converted=await ThingsKindle.toEPUB(data);new Uint8Array(data).fill(0);data=converted.epub.buffer.slice(converted.epub.byteOffset,converted.epub.byteOffset+converted.epub.byteLength);format='EPUB';sourceFormat=converted.kind;storedName=file.name.replace(/\.[^.]*$/,'')+'.epub';}
+        if(format==='MOBI'||format==='DOCX'){$('save-book').textContent=`Converting ${format==='MOBI'?'Kindle book':'Word document'} ${count} of ${files.length}…`;const converted=format==='MOBI'?await ThingsKindle.toEPUB(data):await ThingsDocx.toEPUB(data,{name:file.name});new Uint8Array(data).fill(0);data=converted.epub.buffer.slice(converted.epub.byteOffset,converted.epub.byteOffset+converted.epub.byteLength);format='EPUB';sourceFormat=converted.kind;storedName=file.name.replace(/\.[^.]*$/,'')+'.epub';}
         if(format==='PDF'&&!decoder.decode(new Uint8Array(data).subarray(0,1024)).includes('%PDF-'))throw new Error('This file does not appear to be a valid PDF.');
         if(format==='EPUB'&&new Uint8Array(data)[0]!==80)throw new Error('This file does not appear to be an EPUB archive.');
         stage='save';

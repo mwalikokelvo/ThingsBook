@@ -26,6 +26,7 @@ No private books, backups, recordings, personal voice packs, model weights, acco
 - `work/tests/` — release regression and integration checks.
 - `core/` — Rust/UniFFI native-core foundation and personal-voice runtime source.
 - `work/vendor-foliate-mobi.py` — re-vendors foliate-js's MIT-licensed MOBI/KF8 parser (`vendor/foliate-mobi.js`), used to convert DRM-free Kindle books to EPUB on import.
+- `outputs/ThingsBook/vendor/mammoth.browser.min.js` — mammoth.js 1.13.0 (BSD-2-Clause, npm `mammoth`, sha256 `92914a3708cfdf1e62cb553d1856a7fedab21da83d8ee82845de2f897b368cab`), loaded only when a Word (.docx) book is imported and converted to EPUB.
 - `Start-here.txt` — 1.12.5 release notes, limitations, and update guidance.
 
 ## Build

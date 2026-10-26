@@ -25,14 +25,21 @@ window.ThingsImport = (() => {
     if(bytes[0]===80&&bytes[1]===75&&bytes[2]===3&&bytes[3]===4){
       let container;
       try{container=member(data,'META-INF/container.xml',1024*1024);const doc=xml(container);if([...doc.getElementsByTagName('*')].some(n=>n.localName==='rootfile'&&n.getAttribute('full-path')))return 'EPUB';}
-      catch{throw new Error('This file does not appear to be an EPUB archive.');}
+      catch{}
       finally{container?.fill(0);}
+      // Word (.docx): converted to EPUB on import.
+      let types;
+      try{types=member(data,'[Content_Types].xml',1024*1024);if(new TextDecoder().decode(types).includes('wordprocessingml.document.main+xml'))return 'DOCX';}
+      catch{}
+      finally{types?.fill(0);}
       throw new Error('This file does not appear to be an EPUB archive.');
     }
+    // Compound File (legacy .doc, or an encrypted .docx): not readable without Word.
+    if(bytes.length>8&&[0xd0,0xcf,0x11,0xe0,0xa1,0xb1,0x1a,0xe1].every((b,i)=>bytes[i]===b))throw new Error('Older Word (.doc) files and password-protected Word documents are not supported. Save it as a .docx without a password, then import it.');
     if(extension==='pdf')throw new Error('This file does not appear to be a valid PDF.');
     if(extension==='epub')throw new Error('This file does not appear to be an EPUB archive.');
     if(extension==='txt')return 'TXT';
-    throw new Error('Choose PDF, EPUB or TXT books, or DRM-free Kindle (MOBI/AZW3) books; the file contents were not recognized.');
+    throw new Error('Choose PDF, EPUB or TXT books, or DRM-free Kindle (MOBI/AZW3) and Word (.docx) books; the file contents were not recognized.');
   }
   function xml(bytes) {
     const text = ReaderCore.decodeText(bytes);
