@@ -114,7 +114,8 @@ public class MainActivity extends Activity {
     @JavascriptInterface public void stopSpeech(){runOnUiThread(()->{if(speech!=null)speech.stop();if(audioManager!=null&&speechFocus!=null)audioManager.abandonAudioFocusRequest(speechFocus);});}
     @JavascriptInterface public synchronized boolean beginTransfer(String name,String mime,String mode){
       if(staged!=null||!"export".equals(mode))return false;
-      if(!Arrays.asList("application/pdf","application/epub+zip","text/plain","application/json").contains(mime))return false;
+      // application/octet-stream: streaming (version 2) encrypted backups of large libraries.
+      if(!Arrays.asList("application/pdf","application/epub+zip","text/plain","application/json","application/octet-stream").contains(mime))return false;
       if("pdf".equals(mode)&&!"application/pdf".equals(mime))return false;
       try{staged=new EncryptedTransfer(getCacheDir());transfer=true;transferSize=0;transferName=name.replaceAll("[^\\p{L}\\p{N}._ -]","_");if(transferName.length()>200)transferName=transferName.substring(0,200);transferMime=mime;transferMode=mode;return true;}
       catch(Exception e){cancelTransfer();return false;}

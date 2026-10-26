@@ -117,6 +117,13 @@ async function main() {
   assert.equal(await codeOf(ThingsBackup.read(await entry(e => { e.id = 'x'.repeat(101); }))), 'invalid');
   assert.equal(await codeOf(ThingsBackup.read(await entry(e => { e.file.segments[0].size += 1; }))), 'invalid', 'size that disagrees with the file');
 
+  // Android saves exports through MainActivity.beginTransfer, which accepts only listed types:
+  // both backup versions must be on that list or Android backups fail.
+  const fs = require('node:fs');
+  const java = fs.readFileSync(path.join(root, 'outputs/ThingsBook/android/java/com/thingsbook/library/MainActivity.java'), 'utf8');
+  const allowed = JSON.parse('[' + java.match(/beginTransfer[\s\S]*?Arrays\.asList\(([^)]*)\)\.contains\(mime\)/)[1] + ']');
+  for (const blob of [v1, v2]) assert(allowed.includes(blob.type), `Android export allowlist is missing ${blob.type}`);
+
   // A book removed mid-backup stops the export instead of writing a partial library.
   assert.match(await codeOf(ThingsBackup.stream(lib.config, ['gone'], async () => undefined, created)), /changed while the backup/);
 
