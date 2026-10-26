@@ -33,11 +33,7 @@ function syntheticPdf() {
   const xref = `xref\n0 ${objects.length + 1}\n0000000000 65535 f \n${offsets.map(o => `${String(o).padStart(10, '0')} 00000 n \n`).join('')}trailer\n<< /Size ${objects.length + 1} /Root ${catalog} 0 R >>\nstartxref\n${length}\n%%EOF\n`;
   return Buffer.concat([...parts, Buffer.from(xref)]);
 }
-function serve(dir) {
-  const code = `import sys; sys.path.insert(0, ${JSON.stringify(dir)}); import server; from http.server import ThreadingHTTPServer; ThreadingHTTPServer(('127.0.0.1', 8765), server.Handler).serve_forever()`;
-  const proc = spawn('python3', ['-c', code], {stdio:'ignore'}); servers.add(proc);
-  return new Promise(resolve => setTimeout(resolve, 800));
-}
+const {serve} = require('./browser-helpers.cjs');
 async function until(page, check, arg, timeout = 60000) { const end = Date.now() + timeout; for (;;) { const value = await page.evaluate(check, arg); if (value) return value; if (Date.now() > end) throw new Error(`Timed out waiting for: ${check}`); await new Promise(r => setTimeout(r, 250)); } }
 
 async function main() {

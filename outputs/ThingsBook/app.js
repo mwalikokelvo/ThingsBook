@@ -1,6 +1,6 @@
 'use strict';
 const $ = id => document.getElementById(id);
-const DB_NAME = 'thingsbook-encrypted-v1', DB_VERSION = 2;
+const DB_NAME = 'thingsbook-encrypted-v1', DB_VERSION = 3;
 // PDFs are streamed at import and opened by byte range, so they may be larger; other formats are
 // still read whole when imported and opened.
 const MAX_FILE = 100 * 1024 * 1024, MAX_PDF = 500 * 1024 * 1024;
@@ -90,17 +90,18 @@ async function unlock(event) {
         const records = pendingBackup?.books || await allMetadata();
         decodedBooks = await Promise.all(records.map(async r => { const meta = await readJSON(r.meta,candidateKey); if (meta.id !== r.id) throw new Error(); return meta; }));
         if (!Array.isArray(decodedShelves) || !decodedShelves.length || decodedShelves.some(s => typeof s.id !== 'string' || typeof s.name !== 'string')) throw new Error();
-        if (pendingBackup) for (const record of records) { if (record.chunks) await ThingsChunks.verify(record,record.parts,candidateKey); else await unseal(record.file,candidateKey); }
       } catch { if (remembered) { hasDeviceAccess = false; gateState(); } throw new Error('The password or recovery code is incorrect, or the library/backup is damaged.'); }
       updated = {...source};
       if (password) updated.recovery = await seal(encoder.encode(password),candidateKey);
       if(pendingBackup&&!await confirmStorage(ThingsStorage.payload(pendingBackup.books,pendingBackup.config),'restore'))throw new Error('Restore cancelled before saving. Your existing library is unchanged. You can retry or cancel the restore.');
+      // Every book of a backup is verified and staged piece by piece before anything is replaced.
+      if (pendingBackup) await stageRestore(pendingBackup,candidateKey);
       const saveAccess = !remembered;
       if (saveAccess) remembered = await ThingsDeviceAccess.remember(password,candidateKey,Array.from(source.check.iv).join(','));
       // Reopening an already remembered library is read-only: low disk space
       // must not prevent access merely because another key write would fail.
-      if (saveAccess || pendingBackup) await transaction(pendingBackup ? ['settings','books','chunks'] : ['settings'], tx => {
-        if (pendingBackup) { tx.objectStore('books').clear(); tx.objectStore('chunks').clear(); for (const {parts,...record} of pendingBackup.books) { tx.objectStore('books').put(record); for (const part of parts || []) tx.objectStore('chunks').put(part); } }
+      if (saveAccess || pendingBackup) await transaction(pendingBackup ? ['settings','books','chunks','staging'] : ['settings'], tx => {
+        if (pendingBackup) swapStaged(tx,pendingBackup);
         tx.objectStore('settings').put(updated,'vault'); tx.objectStore('settings').put(remembered,'device-access');
       });
       pendingBackup = null; config = updated; key = candidateKey; shelves = decodedShelves; books = decodedBooks;
@@ -266,6 +267,40 @@ async function nativeTransfer(blob, filename, mode) {
   catch(e) { bridge.cancelTransfer(); throw e; }
 }
 async function downloadBlob(blob, filename) { if (window.ThingsBookAndroid) return nativeTransfer(blob,filename,'export'); const url = URL.createObjectURL(blob), a = el('a'); a.href = url; a.download = filename; document.body.append(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(url),60000); }
+// Restore, bounded in memory: each piece (or whole-file book) of a backup is read from the file, verified
+// with the backup's key and written to the "staging" store, one at a time; swapStaged() then replaces the
+// library in one transaction. Until that transaction commits, the existing library is untouched.
+async function clearStaging() { await transaction(['staging'],tx => tx.objectStore('staging').clear()); }
+async function stageRestore(pending,vaultKey) {
+  await clearStaging();
+  try {
+    for (const record of pending.books) {
+      if (record.chunks) {
+        if (!ThingsChunks.valid(record.chunks) || record.parts?.length !== record.chunks.count) throw new Error('damaged');
+        for (const [index,part] of record.parts.entries()) {
+          const piece = {book:record.id,index,iv:part.iv,data:await ThingsBackup.load(pending.file,part)};
+          await ThingsChunks.piece(record,vaultKey,() => piece,index);
+          await transaction(['staging'],tx => tx.objectStore('staging').put(piece));
+        }
+      } else {
+        const file = {iv:record.file.iv,data:await ThingsBackup.load(pending.file,record.file)};
+        await unseal(file,vaultKey);
+        await transaction(['staging'],tx => tx.objectStore('staging').put({book:record.id,index:-1,...file}));
+      }
+    }
+  } catch (error) {
+    await clearStaging().catch(() => {});
+    if (/quota|space/i.test(`${error?.name} ${error?.message}`)) throw new Error(storageError(error));
+    throw new Error('A book in this backup could not be verified, so the backup may be damaged or incomplete. Your existing library is unchanged.');
+  }
+}
+function swapStaged(tx,pending) {
+  const books = tx.objectStore('books'), chunks = tx.objectStore('chunks'), staging = tx.objectStore('staging'), byId = new Map(pending.books.map(record => [record.id,record]));
+  books.clear(); chunks.clear();
+  for (const record of pending.books) if (record.chunks) books.put({id:record.id,meta:record.meta,chunks:record.chunks});
+  const cursor = staging.openCursor();
+  cursor.onsuccess = () => { const current = cursor.result; if (!current) { staging.clear(); return; } const value = current.value; if (value.index < 0) books.put({id:value.book,meta:byId.get(value.book).meta,file:{iv:value.iv,data:value.data}}); else chunks.put(value); current.continue(); };
+}
 async function bookBlob(id) { const record = await getRecord(id), book = books.find(b => b.id === id); if (!record || !book) throw new Error('Missing book file'); const mime = book.format === 'PDF' ? 'application/pdf' : book.format === 'EPUB' ? 'application/epub+zip' : 'text/plain'; if (record.chunks) { let blob = new Blob([],{type:mime}); for (let index = 0; index < record.chunks.count; index++) blob = new Blob([blob,await ThingsChunks.piece(record,key,i => getChunk(id,i),index)],{type:mime}); return blob; } /* one decrypted piece held at a time */ return new Blob([await unseal(record.file)],{type:mime}); }
 // A chunked book read by byte range: only the pieces asked for are decrypted, and the last few are
 // cached. Used to open large PDFs without loading the whole file. close() drops the cache.
@@ -339,14 +374,15 @@ async function recordSizes() { return new Promise((resolve,reject) => {
 async function backupBlob(created) { const sizes = await recordSizes(); if (!sizes.some(s => s.chunked) && ThingsBackup.fitsLegacy(sizes,config)) return ThingsBackup.legacy(await allRecords(),config,created); return ThingsBackup.stream(config,sizes.map(s => s.id),async id => { const record = await getRecord(id); if (record?.chunks) { /* two passes: piece details first, then one piece's bytes at a time */ record.partInfo = []; for (let index = 0; index < record.chunks.count; index++) { const part = await getChunk(id,index); if (!part) throw new Error('A book file is incomplete. Restore it from a backup before backing up.'); record.partInfo.push({book:part.book,index:part.index,iv:part.iv,size:part.data.byteLength}); } record.partData = index => getChunk(id,index); } return record; },created); }
 async function backup() { if (busy || !key) return; busy = true; try { await closeReader(); await metadataQueue; const created = new Date().toISOString(); await downloadBlob(await backupBlob(created),`ThingsBook-backup-${created.slice(0,10)}.thingsbook`); $('backup-dialog').close(); $('backup-recovery').value = ''; toast(window.ThingsBookAndroid ? 'Choose where to save your encrypted backup. Keep its recovery code separately.' : 'Encrypted backup exported. Keep the recovery code separately for another device.'); } catch { toast('Could not export the backup. Check free space, close other apps and try again.'); } finally { busy = false; resetIdle(); } }
 async function restoreFile(file) { if (!file || busy) return; busy = true; try {
-  const restored = await ThingsBackup.read(file); // version 1 or 2, fully validated
+  const restored = await ThingsBackup.read(file,{lazy:true}); // version 1 or 2, fully validated; version 2 books are indexed, not loaded
+  restored.file = file;
   if (config && !confirm(`Restore ${restored.books.length} books? This replaces the library on this device only after every book is verified. Export a current backup first to keep both collections. Continue?`)) return;
   pendingBackup = restored; busy = false; await lock(); gateState(); toast('Enter the recovery code or original backup password. Your existing library stays intact until verification succeeds.');
 } catch (e) { toast(e?.code === 'newer' || e?.code === 'truncated' ? e.message : 'This is not a valid ThingsBook encrypted backup.'); } finally { busy = false; $('backup-file').value = ''; } }
 async function init() {
   try { if (!crypto.subtle || !window.indexedDB) throw new Error('Use Start ThingsBook.cmd to open this app at its localhost address.');
-    // Version 2 only adds the "chunks" store; existing settings and books are untouched.
-    const opening = indexedDB.open(DB_NAME,DB_VERSION); opening.onupgradeneeded = () => { if(!opening.result.objectStoreNames.contains('settings'))opening.result.createObjectStore('settings');if(!opening.result.objectStoreNames.contains('books'))opening.result.createObjectStore('books',{keyPath:'id'});if(!opening.result.objectStoreNames.contains('chunks'))opening.result.createObjectStore('chunks',{keyPath:['book','index']}); }; db = await request(opening); db.onversionchange = () => { db.close(); location.reload(); }; config = await request(db.transaction('settings').objectStore('settings').get('vault')); hasDeviceAccess = !!(config && await request(db.transaction('settings').objectStore('settings').get('device-access'))); gateState();
+    // Version 2 adds the "chunks" store and version 3 the "staging" store; existing settings and books are untouched.
+    const opening = indexedDB.open(DB_NAME,DB_VERSION); opening.onupgradeneeded = () => { if(!opening.result.objectStoreNames.contains('settings'))opening.result.createObjectStore('settings');if(!opening.result.objectStoreNames.contains('books'))opening.result.createObjectStore('books',{keyPath:'id'});if(!opening.result.objectStoreNames.contains('chunks'))opening.result.createObjectStore('chunks',{keyPath:['book','index']});if(!opening.result.objectStoreNames.contains('staging'))opening.result.createObjectStore('staging',{keyPath:['book','index']}); }; db = await request(opening); db.onversionchange = () => { db.close(); location.reload(); }; config = await request(db.transaction('settings').objectStore('settings').get('vault')); hasDeviceAccess = !!(config && await request(db.transaction('settings').objectStore('settings').get('device-access'))); gateState();
   } catch(e) { $('gate-error').textContent = e.message || 'Browser storage is unavailable. Use a normal browser window.'; $('unlock-button').disabled = true; return; }
   $('unlock-form').addEventListener('submit',unlock); $('lock').onclick = lock;
   $('cancel-restore').onclick = () => { if (!busy) { pendingBackup = null; gateState(); } };

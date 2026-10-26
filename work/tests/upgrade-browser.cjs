@@ -5,7 +5,6 @@
 // released copy is unavailable, so the portable runner stays green on machines without them.
 'use strict';
 let chromium; try { ({chromium} = require('playwright')); } catch { console.log('SKIP: Playwright is not installed.'); process.exit(0); }
-const {spawn} = require('node:child_process');
 const crypto = require('node:crypto');
 const fs = require('node:fs'), os = require('node:os'), path = require('node:path');
 const assert = require('node:assert/strict');
@@ -19,11 +18,7 @@ const textBook = (label, bytes) => { let s = ''; let i = 0; while (s.length < by
 const OLD_BOOK = textBook('Old', 6 * 1024 * 1024 + 7), NEW_BOOK = textBook('New', 9 * 1024 * 1024 + 11);
 
 const servers = new Set();
-function serve(dir) {
-  const code = `import sys; sys.path.insert(0, ${JSON.stringify(dir)}); import server; from http.server import ThreadingHTTPServer; ThreadingHTTPServer(('127.0.0.1', 8765), server.Handler).serve_forever()`;
-  const proc = spawn('python3', ['-c', code], {stdio:'ignore'}); servers.add(proc);
-  return new Promise(resolve => setTimeout(() => resolve(proc), 800));
-}
+const {serve} = require('./browser-helpers.cjs');
 async function open(dir) {
   const server = await serve(dir);
   const context = await chromium.launchPersistentContext(profile, {headless:true});
@@ -32,7 +27,7 @@ async function open(dir) {
   const errors = []; page.on('pageerror', e => errors.push(e.message));
   await page.goto(URL);
   await page.waitForFunction(() => typeof db !== 'undefined' && !!db, null, {timeout:20000});
-  return {page, errors, close:async () => { await context.close(); server.kill(); await new Promise(r => setTimeout(r, 300)); }};
+  return {page, errors, close:async () => { await context.close(); await server.stop(); }};
 }
 async function importFile(page, name, buffer) {
   const before = await page.evaluate(() => books.length);
@@ -64,12 +59,14 @@ async function main() {
   // 2. The new code opens the same profile: upgrade, device-access unlock, old book intact.
   app = await open(current);
   const stores = await app.page.evaluate(() => ({version:db.version, stores:[...db.objectStoreNames]}));
-  assert.deepEqual(stores, {version:2, stores:['books', 'chunks', 'settings']});
+  const expected = await app.page.evaluate(() => DB_VERSION);
+  assert.equal(stores.version, expected);
+  for (const name of ['books', 'chunks', 'settings']) assert(stores.stores.includes(name), `store ${name} exists after the upgrade`);
   await app.page.evaluate(() => unlock({preventDefault(){}})); await app.page.waitForFunction(() => !!key, null, {timeout:30000});
   assert.equal(await app.page.evaluate(() => books.length), 1);
   assert.equal(await app.page.evaluate(id => books.find(b => b.id === id).notes, oldId), 'note from 1.12.5');
   assert.deepEqual(await readBook(app.page, oldId), {length:OLD_BOOK.length, hash:sha(OLD_BOOK)});
-  report.push('new code: upgraded to DB version 2 with a "chunks" store; unlocked with saved device access; old book and note intact');
+  report.push(`new code: upgraded to DB version ${stores.version} (${stores.stores.join(', ')}); unlocked with saved device access; old book and note intact`);
   // Background conversion (when this build has it): the old whole-file book becomes chunks by itself.
   const converts = await app.page.evaluate(() => typeof migrateBooks === 'function');
   if (converts) {
