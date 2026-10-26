@@ -20,6 +20,8 @@ Source changes merged into `main`; not yet packaged. Build the Windows EXE and A
 - Converted books offer "Download EPUB" instead of "Download original".
 - **Library-wide search covers PDF text.** PDFs with a text layer are indexed page by page (read by
   byte range); a match opens the book on its page. Scanned PDFs are still searched inside each book.
+- **Compare PDFs side by side.** The comparison pane now accepts PDFs (including two different PDF
+  books): pages are listed and each page's text is shown when chosen; the PDF is read by byte range.
 
 ### Faster and lighter
 - New books are stored as 4 MiB encrypted pieces (IndexedDB "chunks" store; each piece is bound
