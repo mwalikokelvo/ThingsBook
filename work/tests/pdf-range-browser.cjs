@@ -12,32 +12,11 @@ const servers = new Set(), cleanup = [];
 // THINGSBOOK_PDF_PAGES / THINGSBOOK_PDF_FILLER_MB size the synthetic book (default 12 pages, about 30 MiB).
 const PAGES = Number(process.env.THINGSBOOK_PDF_PAGES || 12), FILLER = Number(process.env.THINGSBOOK_PDF_FILLER_MB || 2.5) * 1024 * 1024;
 
-// A valid PDF: catalog, pages, one font, and per page a content stream followed by an unused filler stream.
-function syntheticPdf() {
-  const objects = [];
-  const add = body => { objects.push(body); return objects.length; };
-  const catalog = add(null), pages = add(null), font = add(Buffer.from('<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>'));
-  const kids = [];
-  for (let n = 1; n <= PAGES; n++) {
-    const text = Buffer.from(`BT /F1 28 Tf 72 700 Td (Page ${n} of ${PAGES}: marker-${n}) Tj ET`);
-    const content = add(Buffer.concat([Buffer.from(`<< /Length ${text.length} >>\nstream\n`), text, Buffer.from('\nendstream')]));
-    kids.push(add(Buffer.from(`<< /Type /Page /Parent ${pages} 0 R /MediaBox [0 0 612 792] /Resources << /Font << /F1 ${font} 0 R >> >> /Contents ${content} 0 R >>`)));
-    const filler = crypto.randomBytes(FILLER);
-    add(Buffer.concat([Buffer.from(`<< /Length ${filler.length} >>\nstream\n`), filler, Buffer.from('\nendstream')]));
-  }
-  objects[catalog - 1] = Buffer.from(`<< /Type /Catalog /Pages ${pages} 0 R >>`);
-  objects[pages - 1] = Buffer.from(`<< /Type /Pages /Kids [${kids.map(k => `${k} 0 R`).join(' ')}] /Count ${PAGES} >>`);
-  const parts = [Buffer.from('%PDF-1.7\n%\xe2\xe3\xcf\xd3\n', 'latin1')], offsets = [];
-  let length = parts[0].length;
-  objects.forEach((body, i) => { offsets.push(length); const chunk = Buffer.concat([Buffer.from(`${i + 1} 0 obj\n`), body, Buffer.from('\nendobj\n')]); parts.push(chunk); length += chunk.length; });
-  const xref = `xref\n0 ${objects.length + 1}\n0000000000 65535 f \n${offsets.map(o => `${String(o).padStart(10, '0')} 00000 n \n`).join('')}trailer\n<< /Size ${objects.length + 1} /Root ${catalog} 0 R >>\nstartxref\n${length}\n%%EOF\n`;
-  return Buffer.concat([...parts, Buffer.from(xref)]);
-}
-const {serve} = require('./browser-helpers.cjs');
+const {serve, syntheticPdf} = require('./browser-helpers.cjs');
 async function until(page, check, arg, timeout = 60000) { const end = Date.now() + timeout; for (;;) { const value = await page.evaluate(check, arg); if (value) return value; if (Date.now() > end) throw new Error(`Timed out waiting for: ${check}`); await new Promise(r => setTimeout(r, 250)); } }
 
 async function main() {
-  const pdf = syntheticPdf();
+  const pdf = syntheticPdf(PAGES, FILLER);
   await serve(app);
   const context = await chromium.launchPersistentContext(profile, {headless:true});
   const page = context.pages()[0] || await context.newPage();

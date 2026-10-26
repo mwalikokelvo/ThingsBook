@@ -18,6 +18,8 @@ Source changes merged into `main`; not yet packaged. Build the Windows EXE and A
   writer from ComicInfo.xml.
 - **PDFs up to 500 MB.** Other formats keep the 100 MB limit.
 - Converted books offer "Download EPUB" instead of "Download original".
+- **Library-wide search covers PDF text.** PDFs with a text layer are indexed page by page (read by
+  byte range); a match opens the book on its page. Scanned PDFs are still searched inside each book.
 
 ### Faster and lighter
 - New books are stored as 4 MiB encrypted pieces (IndexedDB "chunks" store; each piece is bound
@@ -45,6 +47,8 @@ Source changes merged into `main`; not yet packaged. Build the Windows EXE and A
   waiting forever.
 - An open PDF stops decrypting as soon as the library locks.
 - Stray pieces left by an interrupted import are removed at the next unlock.
+- **Fixed:** turning PDF pages quickly (or jumping from a search result) could leave an uncaught
+  "rendering cancelled" error; a cancelled page render now just stops.
 
 ### Compatibility
 - Database version 3 only adds the "chunks" and "staging" stores; libraries upgrade in place (tested
