@@ -22,6 +22,8 @@ window.ThingsImport = (() => {
     if(new TextDecoder().decode(bytes.subarray(0,1024)).includes('%PDF-'))return 'PDF'
     // Kindle (MOBI 6, KF8/AZW3, combined): PalmDB type/creator 'BOOKMOBI'; converted to EPUB on import.
     if(bytes.length>68&&String.fromCharCode(...bytes.subarray(60,68))==='BOOKMOBI')return 'MOBI';
+    // FictionBook (FB2): an XML book whose root element is <FictionBook>; converted to EPUB on import.
+    if(/<FictionBook[\s>]/.test(String.fromCharCode(...bytes.subarray(0,4096))))return 'FB2';
     if(bytes[0]===80&&bytes[1]===75&&bytes[2]===3&&bytes[3]===4){
       let container;
       try{container=member(data,'META-INF/container.xml',1024*1024);const doc=xml(container);if([...doc.getElementsByTagName('*')].some(n=>n.localName==='rootfile'&&n.getAttribute('full-path')))return 'EPUB';}
@@ -32,6 +34,8 @@ window.ThingsImport = (() => {
       try{types=member(data,'[Content_Types].xml',1024*1024);if(new TextDecoder().decode(types).includes('wordprocessingml.document.main+xml'))return 'DOCX';}
       catch{}
       finally{types?.fill(0);}
+      // Zipped FictionBook (.fb2.zip, .fbz): exactly one .fb2 inside. Names are listed without extracting.
+      try{const names=[];ThingsArchiveLib.unzipSync(bytes,{filter:file=>{names.push(file.name);return false;}});if(names.filter(n=>/\.fb2$/i.test(n)).length===1)return 'FB2';}catch{}
       throw new Error('This file does not appear to be an EPUB archive.');
     }
     // Compound File (legacy .doc, or an encrypted .docx): not readable without Word.
@@ -39,7 +43,7 @@ window.ThingsImport = (() => {
     if(extension==='pdf')throw new Error('This file does not appear to be a valid PDF.');
     if(extension==='epub')throw new Error('This file does not appear to be an EPUB archive.');
     if(extension==='txt')return 'TXT';
-    throw new Error('Choose PDF, EPUB or TXT books, or DRM-free Kindle (MOBI/AZW3) and Word (.docx) books; the file contents were not recognized.');
+    throw new Error('Choose PDF, EPUB or TXT books, or DRM-free Kindle (MOBI/AZW3) Word (.docx) and FictionBook (.fb2) books; the file contents were not recognized.');
   }
   function xml(bytes) {
     const text = ReaderCore.decodeText(bytes);
