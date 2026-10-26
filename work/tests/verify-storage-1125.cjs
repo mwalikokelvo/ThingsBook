@@ -98,6 +98,19 @@ async function main() {
   assert.equal(Buffer.concat(chunks).toString(),'sample data '.repeat(30000)); assert(finished); assert(!cancelled);
   context.window.ThingsBookAndroid.writeChunk=()=>false;
   await assert.rejects(run("nativeTransfer(androidPayload,'sample.txt','export')")); assert(cancelled);
+  if (legacyLibrary) {
+    // Background conversion of an earlier-release book to chunks.
+    assert(memory.books.get(id).file, 'still a whole-file book before conversion');
+    run('busy = true'); await assert.rejects(run(`migrateOneBook('${id}',key)`),/paused/); run('busy = false');
+    assert(memory.books.get(id).file && !pieces().length, 'a paused conversion leaves the book untouched');
+    const migrating = run(`migrateOneBook('${id}',key)`), saving = run(`updateBook('${id}',{notes:'Saved during conversion'})`);
+    assert.equal(await migrating,true); await saving;
+    const converted = memory.books.get(id);
+    assert.equal(converted.file,undefined); assert.deepEqual(converted.chunks,{count:1,bytes:48}); assert.equal(pieces().length,1);
+    assert.equal(await run(`getRecord('${id}').then(r => readJSON(r.meta)).then(m => m.notes)`),'Saved during conversion');
+    assert.equal(await (await run(`bookBlob('${id}')`)).text(),'A private chapter. <script>not executed</script>');
+    assert.equal(await run(`migrateOneBook('${id}',key)`),false,'already chunked');
+  }
   console.log('PASS: create vault, encrypted metadata/files/shelves, upload, zero rating, decrypt original, tamper rejection, edit, export encrypted backup, lock, reject wrong passwords, reload persisted records, restore backup, invalid PDF and size limits, chunked Android export and error cleanup.');
 }
 main().catch(e => {console.error(e);process.exitCode=1;});
