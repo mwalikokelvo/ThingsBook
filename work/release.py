@@ -59,8 +59,35 @@ def test_tools():
         run(tool('npm'), 'install', '--prefix', tools, '--no-audit', '--no-fund', PLAYWRIGHT)
     probe = "const fs=require('fs');process.exit(fs.existsSync(require('playwright').chromium.executablePath())?0:1)"
     if subprocess.run([tool('node'), '-e', probe], cwd=ROOT, env=env, capture_output=True).returncode != 0:
-        cli = subprocess.run([tool('node'), '-e', "console.log(require.resolve('playwright/cli.js'))"], cwd=ROOT, env=env, capture_output=True, text=True, check=True).stdout.strip()
+        # playwright's package "exports" hide cli.js; it sits next to the exported package.json.
+        package = subprocess.run([tool('node'), '-e', "console.log(require.resolve('playwright/package.json'))"], cwd=ROOT, env=env, capture_output=True, text=True, check=True).stdout.strip()
+        cli = Path(package).parent / 'cli.js'
         run(tool('node'), cli, 'install', 'chromium')
+
+
+def preflight(args):
+    # Paths the builds need, checked before anything changes, so a wrong path fails in seconds.
+    import importlib.util
+    spec = importlib.util.spec_from_file_location('build_apps', ROOT / 'work/build-apps.py')
+    build_apps = importlib.util.module_from_spec(spec); spec.loader.exec_module(build_apps)
+    problems = []
+    if not args.skip_android:
+        signing = Path(args.signing) if args.signing else ROOT / 'work/thingsbook-signing'
+        for name in ('thingsbook-release.jks', 'password.txt'):
+            if not (signing / name).is_file():
+                problems.append(f'Signing: {signing / name} not found. Pass --signing with the folder that holds your original key.')
+        if not (args.jdk and args.sdk):
+            tools = Path(args.android_tools) if args.android_tools else ROOT.parent.parent / '2026-10-03/https-github-com-louis-cfm-coucou/work/android-tools'
+            for folder in [p for p, given in ((tools / 'jdk', args.jdk), (tools / 'sdk', args.sdk)) if not given]:
+                if not folder.is_dir():
+                    problems.append(f'Android tools: {folder} not found. Pass --android-tools (the folder holding jdk and sdk), or --jdk and --sdk.')
+        if args.voice_pack:
+            try:
+                build_apps.check_voice_pack(Path(args.voice_pack).resolve())
+            except RuntimeError as error:
+                problems.append(f'Voice pack: {error}')
+    if problems:
+        raise SystemExit('Nothing was changed. Fix these first:\n  - ' + '\n  - '.join(problems))
 
 
 def previous_release(version):
@@ -97,6 +124,8 @@ def main():
     run('git', 'fetch', '-q', 'origin', 'main')
     if git('rev-list', '--count', 'HEAD..origin/main') != '0':
         raise SystemExit('main is behind origin/main; run git pull first.')
+
+    preflight(args)
 
     # 2-3. Version, then the tests against the versioned tree. If anything fails before the release
     # commit, the version changes are undone so the same checkout can simply be run again.
