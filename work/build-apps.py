@@ -43,9 +43,26 @@ def windows():
         DESKTOP / 'native/IndependentLauncher.cs')
     print('Windows build complete.', flush=True)
 
-def android(tools, jdk_home=None, sdk_root=None, signing=None):
+TEST_PACKAGE = 'com.thingsbook.library.test'
+
+def test_manifest(build):
+    # A separate app ("ThingsBook Test", com.thingsbook.library.test) that installs next to the real one
+    # and keeps its own library. Components keep their Java package, so their names are written in full.
+    text = (APP / 'android/AndroidManifest.xml').read_text(encoding='utf-8')
+    for old, new in (('package="com.thingsbook.library"', f'package="{TEST_PACKAGE}"'), ('android:label="ThingsBook"', 'android:label="ThingsBook Test"'),
+                     ('android:name=".ListeningService"', 'android:name="com.thingsbook.library.ListeningService"'),
+                     ('android:name=".MainActivity"', 'android:name="com.thingsbook.library.MainActivity"')):
+        if text.count(old) != 1:
+            raise RuntimeError(f'Test manifest: expected one {old}')
+        text = text.replace(old, new)
+    path = build / 'AndroidManifest-test.xml'
+    path.write_text(text, encoding='utf-8')
+    return path
+
+def android(tools, jdk_home=None, sdk_root=None, signing=None, test=False):
     # jdk_home/sdk_root override the bundled tools folder (e.g. JAVA_HOME and ANDROID_HOME on a build machine).
-    build = ROOT / ('work/android-build-' + VERSION.replace('.', ''))
+    # test=True builds the side-by-side test app; `signing` then holds a throwaway key, never the original.
+    build = ROOT / ('work/android-build-' + VERSION.replace('.', '') + ('-test' if test else ''))
     jdk = (Path(jdk_home) if jdk_home else next((tools / 'jdk').iterdir())) / 'bin'
     sdk_base = Path(sdk_root) if sdk_root else tools / 'sdk'
     sdk = sdk_base / 'build-tools/35.0.0'
@@ -56,7 +73,7 @@ def android(tools, jdk_home=None, sdk_root=None, signing=None):
     signing = Path(signing) if signing else ROOT / 'work/thingsbook-signing'
     keystore, password = signing / 'thingsbook-release.jks', signing / 'password.txt'
     if not keystore.is_file() or not password.is_file():
-        raise RuntimeError('Original signing material is required for an upgrade.')
+        raise RuntimeError('A test signing key is required.' if test else 'Original signing material is required for an upgrade.')
     for folder in ('assets/web', 'classes', 'dex'):
         (build / folder).mkdir(parents=True, exist_ok=True)
     for name in ('index.html', 'style.css', 'app.js', 'reader.js', 'reader.css', 'pdf.worker.mjs', 'vendor', 'cmaps', 'standard_fonts', 'wasm'):
@@ -67,10 +84,12 @@ def android(tools, jdk_home=None, sdk_root=None, signing=None):
             shutil.copy2(source, destination)
     major, minor, patch = map(int, VERSION.split('.'))
     code = major * 10000 + minor * 100 + patch
+    name = VERSION + ('-test' if test else '')
+    manifest = test_manifest(build) if test else APP / 'android/AndroidManifest.xml'
     run(sdk / 'aapt2.exe', 'compile', '--dir', APP / 'android/res', '-o', build / 'resources.zip')
-    run(sdk / 'aapt2.exe', 'link', '-o', build / 'unsigned.apk', '--manifest', APP / 'android/AndroidManifest.xml',
+    run(sdk / 'aapt2.exe', 'link', '-o', build / 'unsigned.apk', '--manifest', manifest,
         '-I', platform, '--min-sdk-version', '26', '--target-sdk-version', '35', '--version-code', code,
-        '--version-name', VERSION, '--replace-version', build / 'resources.zip')
+        '--version-name', name, '--replace-version', build / 'resources.zip')
     run(jdk / 'jar.exe', 'uf', build / 'unsigned.apk', '-C', build, 'assets')
     native=APP/'android/jniLibs/arm64-v8a/libthingsbook_voices.so'
     if not native.is_file():raise RuntimeError('Build the16KB-aligned Android voice library before packaging.')
@@ -83,12 +102,12 @@ def android(tools, jdk_home=None, sdk_root=None, signing=None):
         '--lib', platform, '--output', build / 'dex', build / 'classes.jar')
     run(jdk / 'jar.exe', 'uf', build / 'unsigned.apk', '-C', build / 'dex', 'classes.dex')
     run(sdk / 'zipalign.exe', '-f', '-P', '16', '4', build / 'unsigned.apk', build / 'aligned.apk')
-    apk = ROOT / f'outputs/ThingsBook-Android-{VERSION}.apk'
+    apk = ROOT / f"outputs/ThingsBook-Android-{'Test-' if test else ''}{VERSION}.apk"
     run(jdk / 'java.exe', '-jar', sdk / 'lib/apksigner.jar', 'sign',
         '--ks', keystore, '--ks-key-alias', 'thingsbook', '--ks-pass', 'file:' + str(password),
         '--out', apk, build / 'aligned.apk')
     run(jdk / 'java.exe', '-jar', sdk / 'lib/apksigner.jar', 'verify', '--verbose', apk)
-    print('Android build complete.', flush=True)
+    print(f'Android {"test " if test else ""}build complete: {apk.name}', flush=True)
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
@@ -97,8 +116,9 @@ if __name__ == '__main__':
     parser.add_argument('--jdk', help='JDK home to use instead of the tools folder (for example JAVA_HOME)')
     parser.add_argument('--sdk', help='Android SDK root to use instead of the tools folder (for example ANDROID_HOME)')
     parser.add_argument('--signing', help='Folder holding thingsbook-release.jks and password.txt (default work/thingsbook-signing)')
+    parser.add_argument('--test', action='store_true', help='Build the side-by-side "ThingsBook Test" app (com.thingsbook.library.test) with a throwaway key')
     args = parser.parse_args()
     if args.platform == 'windows':
         windows()
     else:
-        android(args.android_tools.resolve(), args.jdk, args.sdk, args.signing)
+        android(args.android_tools.resolve(), args.jdk, args.sdk, args.signing, args.test)
