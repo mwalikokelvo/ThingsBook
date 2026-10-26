@@ -38,6 +38,16 @@ C:\Python314\python.exe work\build-apps.py android
 
 Then run the relevant checks and release verifier before distributing either artifact. Do not uninstall the Android app during an upgrade because uninstalling removes its private on-device library.
 
+For a quick check on any platform (Linux, macOS or Windows), run the portable regression suite from the repository root. It runs every test that needs only Node and lists the Electron, browser and Windows-only tests as skipped, with the reason:
+
+```
+node work/run-tests.cjs            # run everything portable
+node work/run-tests.cjs research   # run tests whose name contains "research"
+node work/run-tests.cjs --list     # show what would run or be skipped
+```
+
+This does not replace the Windows runtime checks or the release verifier.
+
 ## Project status
 
 Release 1.12.5 is a matched Windows/Android release, but the broader Unified v5 rebuild is still in progress. Native Android storage/search migration, sustained background/full-book endurance, semantic search, private sync, precise EPUB CFI annotations, and parts of the native-shell roadmap remain unfinished. See `Start-here.txt` for the current release boundary.
