@@ -39,6 +39,47 @@ const importingBooks = new Set();
 async function removeOrphanChunks() { const keys = await request(db.transaction('chunks').objectStore('chunks').getAllKeys()), ids = await request(db.transaction('books').objectStore('books').getAllKeys()); const known = new Set(ids), candidates = [...new Set(keys.map(k => k[0]))].filter(id => !known.has(id) && !importingBooks.has(id)); let removed = 0;
   // Re-check inside one books+chunks transaction, which IndexedDB orders against an import's record write.
   if (candidates.length) await transaction(['books','chunks'],tx => { for (const id of candidates) { const check = tx.objectStore('books').get(id); check.onsuccess = () => { if (!check.result && !importingBooks.has(id)) { tx.objectStore('chunks').delete(chunkRange(id)); removed++; } }; } }); return removed; }
+// Books stored by earlier releases (one whole sealed file) are converted to chunks in the background,
+// one at a time while the app is idle, so later progress and note saves stop rewriting the whole file.
+// The record swap runs on metadataQueue, like updateBook, keeps the record's latest metadata and gives up
+// (leaving the book exactly as it was) if the file changed, the book was removed, the library locked or
+// another operation such as a backup is running.
+const sameBytes = (a,b) => a.length === b.length && a.every((value,index) => value === b[index]);
+async function migrateOneBook(id,vaultKey) {
+  const before = await getRecord(id);
+  if (!before?.file || !vaultKey || key !== vaultKey) return false;
+  const plain = await unseal(before.file,vaultKey);
+  importingBooks.add(id);
+  try {
+    await removeChunks(id);
+    const chunks = await ThingsChunks.write(plain,vaultKey,id,part => transaction(['chunks'],tx => tx.objectStore('chunks').put(part)));
+    new Uint8Array(plain).fill(0);
+    const swap = metadataQueue.catch(() => {}).then(async () => {
+      if (busy || key !== vaultKey) throw new Error('Book conversion paused.');
+      const latest = await getRecord(id);
+      if (!latest?.file || !sameBytes(new Uint8Array(latest.file.iv),new Uint8Array(before.file.iv))) throw new Error('Book changed during conversion.');
+      await transaction(['books'],tx => tx.objectStore('books').put({id,meta:latest.meta,chunks}));
+    });
+    metadataQueue = swap.catch(() => {});
+    await swap; return true;
+  } catch (error) { await removeChunks(id).catch(() => {}); throw error; }
+  finally { importingBooks.delete(id); }
+}
+let migrationRun = 0;
+async function migrateBooks() {
+  const run = ++migrationRun, vaultKey = key, pause = ms => new Promise(resolve => setTimeout(resolve,ms));
+  const active = () => run === migrationRun && key === vaultKey;
+  await pause(5000); if (!active()) return 0;
+  const pending = (await recordSizes()).filter(size => !size.chunked).map(size => size.id);
+  let converted = 0;
+  for (const id of pending) {
+    while (busy && active()) await pause(2000);
+    if (!active()) break;
+    try { if (await migrateOneBook(id,vaultKey)) converted++; } catch { /* left as a whole-file book; retried next unlock */ }
+    await pause(1000);
+  }
+  return converted;
+}
 async function allMetadata() { return new Promise((resolve,reject) => {
   const summaries = [], cursor = db.transaction('books').objectStore('books').openCursor();
   cursor.onerror = () => reject(cursor.error);
@@ -105,7 +146,7 @@ async function unlock(event) {
         tx.objectStore('settings').put(updated,'vault'); tx.objectStore('settings').put(remembered,'device-access');
       });
       pendingBackup = null; config = updated; key = candidateKey; shelves = decodedShelves; books = decodedBooks;
-      removeOrphanChunks().catch(() => {});
+      removeOrphanChunks().catch(() => {}); migrateBooks().catch(() => {});
     } else {
       key = candidateKey; const initial = [{id:crypto.randomUUID(),name:'My collection'}];
       const created = {version:1,salt,check:await seal(encoder.encode('ThingsBook vault v1')),library:await sealJSON(initial),recovery:await seal(encoder.encode(password))};
