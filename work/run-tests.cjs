@@ -38,6 +38,7 @@ function classify(file) {
   const ext = path.extname(file);
   const full = path.join(testsDir, file);
   if (!fs.statSync(full).isFile()) return null;
+  if (/-helpers?\.cjs$/.test(file)) return null; // shared code for tests, not a test
   if (ext === '.py') return { skip: 'Python launcher for the packaged Windows EXE' };
   if (ext === '.js') return { skip: 'browser-page test; needs a browser harness' };
   if (ext !== '.cjs') return null;

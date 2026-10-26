@@ -11,11 +11,7 @@ const fixtures = path.join(__dirname, 'fixtures/fb2');
 const profile = fs.mkdtempSync(path.join(os.tmpdir(), 'tb-fb2-'));
 const servers = new Set();
 
-function serve(dir) {
-  const code = `import sys; sys.path.insert(0, ${JSON.stringify(dir)}); import server; from http.server import ThreadingHTTPServer; ThreadingHTTPServer(('127.0.0.1', 8765), server.Handler).serve_forever()`;
-  const proc = spawn('python3', ['-c', code], {stdio:'ignore'}); servers.add(proc);
-  return new Promise(resolve => setTimeout(resolve, 800));
-}
+const {serve} = require('./browser-helpers.cjs');
 async function importFile(page, name, buffer) {
   const before = await page.evaluate(() => books.length);
   await page.evaluate(() => { $('upload-error').textContent = ''; });
