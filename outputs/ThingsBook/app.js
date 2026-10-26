@@ -262,8 +262,37 @@ async function nativeTransfer(blob, filename, mode) {
 }
 async function downloadBlob(blob, filename) { if (window.ThingsBookAndroid) return nativeTransfer(blob,filename,'export'); const url = URL.createObjectURL(blob), a = el('a'); a.href = url; a.download = filename; document.body.append(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(url),60000); }
 async function bookBlob(id) { const record = await getRecord(id), book = books.find(b => b.id === id); if (!record || !book) throw new Error('Missing book file'); const mime = book.format === 'PDF' ? 'application/pdf' : book.format === 'EPUB' ? 'application/epub+zip' : 'text/plain'; if (record.chunks) return new Blob(await ThingsChunks.read(record,key,index => getChunk(id,index)),{type:mime}); return new Blob([await unseal(record.file)],{type:mime}); }
+// A chunked book read by byte range: only the pieces asked for are decrypted, and the last few are
+// cached. Used to open large PDFs without loading the whole file. close() drops the cache.
+async function bookSource(id) {
+  const record = await getRecord(id), book = books.find(b => b.id === id), vaultKey = key;
+  if (!record?.chunks || !book || !vaultKey) return null;
+  const SIZE = ThingsChunks.SIZE, size = record.chunks.bytes, cache = new Map(), stats = {decrypted:0,delivered:0};
+  const piece = index => {
+    let pending = cache.get(index);
+    if (pending) cache.delete(index);
+    else { pending = ThingsChunks.piece(record,vaultKey,i => getChunk(id,i),index); stats.decrypted++; pending.catch(() => cache.delete(index)); }
+    cache.set(index,pending);
+    while (cache.size > 4) cache.delete(cache.keys().next().value);
+    return pending;
+  };
+  return {size,type:'application/pdf',stats,
+    async read(begin,end) {
+      begin = Math.max(0,begin); end = Math.min(size,end);
+      const out = new Uint8Array(Math.max(0,end - begin));
+      for (let index = Math.floor(begin / SIZE); index * SIZE < end; index++) {
+        const bytes = new Uint8Array(await piece(index)), start = index * SIZE;
+        const from = Math.max(begin,start) - start, to = Math.min(end,start + bytes.length) - start;
+        out.set(bytes.subarray(from,to),start + from - begin);
+      }
+      stats.delivered += out.length;
+      return out;
+    },
+    async arrayBuffer() { return (await bookBlob(id)).arrayBuffer(); },
+    close() { cache.clear(); }};
+}
 async function downloadBook(id) { if (busy) return; busy = true; try { const book = books.find(b => b.id === id); await downloadBlob(await bookBlob(id),book.filename); toast(window.ThingsBookAndroid ? 'Choose where to save your original. This copy is unencrypted.' : 'Original downloaded. Keep this unencrypted copy somewhere private.'); } catch { toast('Could not decrypt or save this book. Check free space and try again.'); } finally { busy = false; resetIdle(); } }
-async function readBook(id) { if (busy) return; busy = true; try { const book = books.find(b => b.id === id), blob = await bookBlob(id); if (book.status === 'unread') await updateBook(id,{status:'reading'}); await closeReader(); $('detail-dialog').close(); if (!$('reader-dialog').open) $('reader-dialog').showModal(); await ThingsReader.open(book,blob,changes => updateBook(id,changes)); } catch(e) { const message=e.message || 'Could not open this book. Check its format or download the original.'; $('reader-message').textContent=message;const notice=el('p','reading-error',message);$('reader-content').replaceChildren(notice);$('reader-save-status').textContent='Book could not be opened';toast(message); } finally { busy = false; resetIdle(); } }
+async function readBook(id) { if (busy) return; busy = true; try { const book = books.find(b => b.id === id), blob = (book?.format === 'PDF' && await bookSource(id)) || await bookBlob(id); if (book.status === 'unread') await updateBook(id,{status:'reading'}); await closeReader(); $('detail-dialog').close(); if (!$('reader-dialog').open) $('reader-dialog').showModal(); await ThingsReader.open(book,blob,changes => updateBook(id,changes)); } catch(e) { const message=e.message || 'Could not open this book. Check its format or download the original.'; $('reader-message').textContent=message;const notice=el('p','reading-error',message);$('reader-content').replaceChildren(notice);$('reader-save-status').textContent='Book could not be opened';toast(message); } finally { busy = false; resetIdle(); } }
 async function prepareBackup() {
   if (busy || !key) return;
   busy = true;
