@@ -49,7 +49,15 @@ jobs:
             -storepass $password -keypass $password -keyalg RSA -keysize 3072 -validity 10000 -dname "CN=ThingsBook Test build" -noprompt
           if ($LASTEXITCODE -ne 0) { throw 'keytool failed.' }
       - name: Build the test APK
-        run: python work/build-apps.py android --test --jdk "${{ env.JAVA_HOME_17_X64 }}" --sdk "${{ env.ANDROID_HOME }}" --signing test-signing
+        shell: pwsh
+        run: |
+          # The runner's JAVA_HOME_17_X64 and ANDROID_HOME are machine variables, read with $env:.
+          python work/build-apps.py android --test --jdk "$env:JAVA_HOME_17_X64" --sdk "$env:ANDROID_HOME" --signing test-signing 2>&1 | Tee-Object -FilePath build.log
+          if ($LASTEXITCODE -ne 0) {
+            # Annotations are readable from the API even where the raw log is not.
+            Get-Content build.log -Tail 15 | ForEach-Object { "::error title=Android test build::$($_ -replace '%','%25' -replace '\r','' )" }
+            exit 1
+          }
       - name: Publish the test-build pre-release
         shell: pwsh
         env:
