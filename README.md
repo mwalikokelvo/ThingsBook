@@ -60,6 +60,8 @@ python work\release.py 1.13.0            # add --push to push main and the tag
 python work\release.py 1.13.0 --skip-android
 ```
 
+To build your private Android voices into the APK, add `--voice-pack "D:\path\to\pack.zip"`. On first launch, when no personal voices are installed, the app installs the bundled pack through the same checks as a pack chosen by hand. Keep the pack outside the repository, or in the ignored `private-voices/` folder; the build refuses a pack that git could commit. Never bundle it in a GitHub build: the repository and its releases are public. Anyone given that APK also gets the voices.
+
 `python work/set-version.py <version>` changes only the version numbers. Pushing a `v<version>` tag also runs `.github/workflows/release.yml`, which builds on GitHub's Windows runner and publishes a GitHub release. It always builds the EXE. It builds the APK only when the `ANDROID_KEYSTORE_BASE64` and `ANDROID_KEYSTORE_PASSWORD` repository secrets hold the original signing key.
 
 ## Project status

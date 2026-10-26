@@ -40,6 +40,10 @@ Source changes merged into `main`; not yet packaged. Build the Windows EXE and A
   closing or restarting and library search includes it. Removing a book removes it. It travels in
   version 2 backups; on restore, records that do not verify for their book and page are dropped.
 
+- **Built-in private voices (Android, private builds).** `work/release.py --voice-pack <file>` bundles
+  your private voice pack into the APK; on first launch with no personal voices installed, the app
+  installs it through the usual checks. The pack never goes into the repository or GitHub builds.
+
 ### Faster and lighter
 - New books are stored as 4 MiB encrypted pieces (IndexedDB "chunks" store; each piece is bound
   to its book, position and count). Saving reading progress or notes now rewrites a few hundred

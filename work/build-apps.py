@@ -59,7 +59,30 @@ def test_manifest(build):
     path.write_text(text, encoding='utf-8')
     return path
 
-def android(tools, jdk_home=None, sdk_root=None, signing=None, test=False):
+def check_voice_pack(pack):
+    """The private voice pack to bundle: the app's installer format (manifest.json, then catalog.json) for the
+    model this app pins. Refused when it sits in the repository without being ignored, so it cannot be committed."""
+    import zipfile, re
+    if not pack.is_file():
+        raise RuntimeError(f'Voice pack not found: {pack}')
+    if pack.stat().st_size > 420 * 1024 * 1024:
+        raise RuntimeError('Voice pack is larger than the app accepts (400 MB).')
+    try:
+        inside = pack.relative_to(ROOT)
+    except ValueError:
+        inside = None
+    if inside is not None and subprocess.run(['git', 'check-ignore', '-q', str(inside)], cwd=ROOT).returncode != 0:
+        raise RuntimeError('Keep the private voice pack outside the repository (or in an ignored folder) so it is never committed.')
+    with zipfile.ZipFile(pack) as archive:
+        names = archive.namelist()
+        if names[:2] != ['manifest.json', 'catalog.json']:
+            raise RuntimeError('This is not a ThingsBook private Android voice pack (manifest.json and catalog.json must come first).')
+        manifest = json.loads(archive.read('manifest.json'))
+    pinned = re.search(r'MODEL_HASH="([0-9a-f]{64})"', (APP / 'android/java/com/thingsbook/library/PersonalVoicePack.java').read_text(encoding='utf-8')).group(1)
+    if manifest.get('version') != 1 or manifest.get('model_sha256') != pinned:
+        raise RuntimeError('This voice pack is for a different voice model than this app supports.')
+
+def android(tools, jdk_home=None, sdk_root=None, signing=None, test=False, voice_pack=None):
     # jdk_home/sdk_root override the bundled tools folder (e.g. JAVA_HOME and ANDROID_HOME on a build machine).
     # test=True builds the side-by-side test app; `signing` then holds a throwaway key, never the original.
     build = ROOT / ('work/android-build-' + VERSION.replace('.', '') + ('-test' if test else ''))
@@ -74,6 +97,9 @@ def android(tools, jdk_home=None, sdk_root=None, signing=None, test=False):
     keystore, password = signing / 'thingsbook-release.jks', signing / 'password.txt'
     if not keystore.is_file() or not password.is_file():
         raise RuntimeError('A test signing key is required.' if test else 'Original signing material is required for an upgrade.')
+    if voice_pack:
+        voice_pack = Path(voice_pack).resolve()
+        check_voice_pack(voice_pack)
     for folder in ('assets/web', 'classes', 'dex'):
         (build / folder).mkdir(parents=True, exist_ok=True)
     for name in ('index.html', 'style.css', 'app.js', 'reader.js', 'reader.css', 'pdf.worker.mjs', 'vendor', 'cmaps', 'standard_fonts', 'wasm'):
@@ -94,7 +120,12 @@ def android(tools, jdk_home=None, sdk_root=None, signing=None, test=False):
     native=APP/'android/jniLibs/arm64-v8a/libthingsbook_voices.so'
     if not native.is_file():raise RuntimeError('Build the16KB-aligned Android voice library before packaging.')
     import zipfile
-    with zipfile.ZipFile(build/'unsigned.apk','a') as bundle:bundle.write(native,'assets/native/arm64-v8a/libthingsbook_voices.so',compress_type=zipfile.ZIP_STORED)
+    with zipfile.ZipFile(build/'unsigned.apk','a') as bundle:
+        bundle.write(native,'assets/native/arm64-v8a/libthingsbook_voices.so',compress_type=zipfile.ZIP_STORED)
+        if voice_pack:
+            # Installed by the app on first launch when no personal voices are installed (MainActivity.installBundledVoices).
+            bundle.write(voice_pack,'assets/voices/personal-pack.zip',compress_type=zipfile.ZIP_STORED)
+            print(f'Bundled private voice pack: {voice_pack.name} ({voice_pack.stat().st_size // (1024 * 1024)} MB)', flush=True)
     sources = sorted((APP / 'android/java/com/thingsbook/library').glob('*.java'))
     run(jdk / 'javac.exe', '-encoding', 'UTF-8', '--release', '8', '-classpath', platform, '-d', build / 'classes', *sources)
     run(jdk / 'jar.exe', 'cf', build / 'classes.jar', '-C', build / 'classes', '.')
@@ -117,8 +148,9 @@ if __name__ == '__main__':
     parser.add_argument('--sdk', help='Android SDK root to use instead of the tools folder (for example ANDROID_HOME)')
     parser.add_argument('--signing', help='Folder holding thingsbook-release.jks and password.txt (default work/thingsbook-signing)')
     parser.add_argument('--test', action='store_true', help='Build the side-by-side "ThingsBook Test" app (com.thingsbook.library.test) with a throwaway key')
+    parser.add_argument('--voice-pack', help='Private Android voice pack (.zip) to bundle; kept outside the repository, never committed')
     args = parser.parse_args()
     if args.platform == 'windows':
         windows()
     else:
-        android(args.android_tools.resolve(), args.jdk, args.sdk, args.signing, args.test)
+        android(args.android_tools.resolve(), args.jdk, args.sdk, args.signing, args.test, args.voice_pack)

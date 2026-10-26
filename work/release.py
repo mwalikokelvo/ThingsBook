@@ -4,6 +4,7 @@ usage (from the repository root, on Windows):
   python work\\release.py 1.13.0                      # Windows EXE + Android APK
   python work\\release.py 1.13.0 --skip-android       # Windows EXE only
   python work\\release.py 1.13.0 --jdk "C:\\...\\jdk" --sdk "C:\\...\\Android\\Sdk" --signing "D:\\keys"
+  python work\\release.py 1.13.0 --voice-pack "D:\\private\\voices.zip"   # bundle your private voices into the APK
 
 Steps, stopping at the first failure:
   1. checks the checkout is `main`, clean, and not behind origin/main;
@@ -54,6 +55,7 @@ def main():
     parser.add_argument('--skip-android', action='store_true')
     parser.add_argument('--android-tools', help='Tools folder with jdk/ and sdk/ (build-apps.py default if omitted)')
     parser.add_argument('--jdk'); parser.add_argument('--sdk'); parser.add_argument('--signing')
+    parser.add_argument('--voice-pack', help='Private Android voice pack to bundle into the APK (kept outside the repository)')
     parser.add_argument('--push', action='store_true', help='Push the release commit and tag to origin')
     parser.add_argument('--allow-dirty', action='store_true', help=argparse.SUPPRESS)
     args = parser.parse_args()
@@ -84,7 +86,7 @@ def main():
         run(sys.executable, ROOT / 'work/build-apps.py', 'windows')
         built.append(OUT / f'ThingsBook-Independent-{version}.exe')
     if not args.skip_android:
-        extra = [f'--{k}={v}' for k, v in (('android-tools', args.android_tools), ('jdk', args.jdk), ('sdk', args.sdk), ('signing', args.signing)) if v]
+        extra = [f'--{k}={v}' for k, v in (('android-tools', args.android_tools), ('jdk', args.jdk), ('sdk', args.sdk), ('signing', args.signing), ('voice-pack', args.voice_pack)) if v]
         run(sys.executable, ROOT / 'work/build-apps.py', 'android', *extra)
         built.append(OUT / f'ThingsBook-Android-{version}.apk')
     for file in built:

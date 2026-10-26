@@ -7,5 +7,7 @@ window.ThingsAndroidNeural=(()=>{
  const customVoices=async()=>{try{return JSON.parse(native.personalStatus()).voices||[];}catch{return [];}},streamCustom=async(text,voice,kind='prose')=>{const r=await call({action:'synthesize',text,voice,kind});if(!/^[a-f0-9-]{36}$/.test(r.ticket||''))throw Error('Invalid local audio segment.');return '/personal-audio?ticket='+r.ticket;};
  const api={receive,customVoices,streamCustom,warmCustom:()=>call({action:'warm'}),stopSpeech,releaseCustomStream:url=>{try{const u=new URL(url,location.href);if(u.pathname==='/personal-audio')native.releasePersonal(u.searchParams.get('ticket')||'');}catch{}},synthesizeCustom:async(text,voice,kind)=>{const url=await streamCustom(text,voice,kind);try{return new Uint8Array(await(await fetch(url,{credentials:'omit',cache:'no-store'})).arrayBuffer());}finally{api.releaseCustomStream(url);}}};
  const settings=document.createElement('button');settings.type='button';settings.className='secondary';settings.textContent='Install private Android voices';settings.onclick=()=>{ThingsReader.stop();native.choosePersonalPack();};document.querySelector('.narrator-bar').append(settings);
- window.nativePersonalPackResult=message=>{window.nativeNotice?.(message);window.nativeSpeechReady?.();};return api;
+ window.nativePersonalPackResult=message=>{window.nativeNotice?.(message);window.nativeSpeechReady?.();};
+ // A private build may carry its voice pack; the app installs it once when no voices are installed.
+ setTimeout(()=>{try{native.installBundledVoices?.();}catch{}},1500);return api;
 })();

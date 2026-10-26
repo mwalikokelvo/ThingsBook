@@ -58,3 +58,6 @@ Thumbs.db
 
 # Throwaway key for the side-by-side Android test build (made by .github/workflows/android-test.yml).
 test-signing/
+
+# Private Android voice packs bundled with --voice-pack: never committed (the repository is public).
+private-voices/

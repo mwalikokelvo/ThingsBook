@@ -26,7 +26,7 @@ public class MainActivity extends Activity {
   public static void mediaCommand(String command){MainActivity a=current.get();if(a!=null)a.runOnUiThread(()->{if(!a.closing&&a.web!=null)a.web.evaluateJavascript("window.ThingsBackground && window.ThingsBackground.command("+JSONObject.quote(command)+")",null);});}
 
   private ZLibraryProvider provider;
-  private PersonalVoices personal;private boolean personalPicker;
+  private PersonalVoices personal;private boolean personalPicker,bundledVoicesChecked;
   private final java.util.concurrent.ExecutorService providerWorker=java.util.concurrent.Executors.newSingleThreadExecutor();
   private ValueCallback<Uri[]> picker;
   private boolean closing;
@@ -95,6 +95,14 @@ public class MainActivity extends Activity {
     @JavascriptInterface public void personalRequest(String id,String payload){if(id==null||!id.matches("[a-zA-Z0-9-]{1,80}")||payload==null||payload.length()>4000)return;try{personal.request(id,new JSONObject(payload));}catch(Exception ignored){}}
     @JavascriptInterface public void cancelPersonal(boolean release){personal.stop(release);}
     @JavascriptInterface public void releasePersonal(String ticket){personal.release(ticket);}
+    // A private build can carry the voice pack as assets/voices/personal-pack.zip (work/build-apps.py
+    // --voice-pack). When no personal voices are installed yet, it goes through the same installer as a
+    // chosen pack: pinned model hashes, size limits, states sealed with the Android Keystore. Checked once
+    // per launch, after the page is ready to show progress; an installed pack is never replaced.
+    @JavascriptInterface public void installBundledVoices(){synchronized(this){if(bundledVoicesChecked)return;bundledVoicesChecked=true;}
+      try{JSONObject status=new JSONObject(personal.status());if(!status.optBoolean("supported")||status.optJSONArray("voices")==null||status.getJSONArray("voices").length()>0)return;}catch(Exception e){return;}
+      InputStream input;try{input=getAssets().open("voices/personal-pack.zip");}catch(IOException missing){return;}
+      notice("Installing the built-in private voices on this device. This can take a minute…");personal.install(input,"pack-import");}
     @JavascriptInterface public void choosePersonalPack(){runOnUiThread(()->{if(personalPicker)return;personalPicker=true;personal.stop(true);try{startActivityForResult(new Intent(Intent.ACTION_OPEN_DOCUMENT).addCategory(Intent.CATEGORY_OPENABLE).setType("*/*"),4);}catch(Exception e){personalPicker=false;notice("A private voice pack picker could not open.");}});}
 
     @JavascriptInterface public void cancelProvider(){provider.cancel();}
