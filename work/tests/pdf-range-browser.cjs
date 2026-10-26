@@ -8,8 +8,9 @@ const fs = require('node:fs'), os = require('node:os'), path = require('node:pat
 const assert = require('node:assert/strict');
 const app = path.resolve(process.argv[2] || path.join(__dirname, '../../outputs/ThingsBook'));
 const profile = fs.mkdtempSync(path.join(os.tmpdir(), 'tb-pdfrange-'));
-const servers = new Set();
-const PAGES = 12, FILLER = 2.5 * 1024 * 1024;
+const servers = new Set(), cleanup = [];
+// THINGSBOOK_PDF_PAGES / THINGSBOOK_PDF_FILLER_MB size the synthetic book (default 12 pages, about 30 MiB).
+const PAGES = Number(process.env.THINGSBOOK_PDF_PAGES || 12), FILLER = Number(process.env.THINGSBOOK_PDF_FILLER_MB || 2.5) * 1024 * 1024;
 
 // A valid PDF: catalog, pages, one font, and per page a content stream followed by an unused filler stream.
 function syntheticPdf() {
@@ -52,7 +53,9 @@ async function main() {
   await page.waitForFunction(() => !!key);
   // Import streams: record the largest single read of file data (Blob/File.arrayBuffer) during import.
   await page.evaluate(() => { window.__largestRead = 0; const read = Blob.prototype.arrayBuffer; Blob.prototype.arrayBuffer = function () { window.__largestRead = Math.max(window.__largestRead, this.size); return read.call(this); }; });
-  await page.setInputFiles('#book-files', {name:'Large.pdf', mimeType:'application/pdf', buffer:pdf});
+  // Large files go through a temporary path (Playwright limits in-memory file payloads).
+  const pdfPath = path.join(profile, '..', `tb-range-${process.pid}.pdf`); fs.writeFileSync(pdfPath, pdf); cleanup.push(pdfPath);
+  await page.setInputFiles('#book-files', pdfPath);
   await page.evaluate(() => upload({preventDefault(){}}));
   const id = await until(page, () => books[0]?.id, null, 120000);
   const pieces = await page.evaluate(id => getRecord(id).then(r => r.chunks.count), id);
@@ -72,7 +75,7 @@ async function main() {
   assert(opened.delivered <= pdf.length * 0.2, `opening handed pdf.js ${opened.delivered} of ${pdf.length} bytes`);
   assert(opened.decrypted <= pieces + 2, `opening decrypted ${opened.decrypted} pieces for ${pieces}`);
   const first = await page.evaluate(() => ThingsReader.context().pdf.getPage(1).then(p => p.getTextContent()).then(t => t.items.map(i => i.str).join(' ')));
-  assert.match(first, /Page 1 of 12: marker-1/);
+  assert.match(first, new RegExp(`Page 1 of ${PAGES}: marker-1`));
   const last = await page.evaluate(n => ThingsReader.context().pdf.getPage(n).then(p => p.getTextContent()).then(t => t.items.map(i => i.str).join(' ')), PAGES);
   assert.match(last, new RegExp(`Page ${PAGES} of ${PAGES}: marker-${PAGES}`));
   const after = await page.evaluate(() => ThingsReader.context().source.stats.delivered);
@@ -98,4 +101,4 @@ async function main() {
   await context.close();
   console.log(report.map(line => `PASS ${line}`).join('\n'));
 }
-main().catch(e => { console.error(e); process.exitCode = 1; }).finally(() => { for (const proc of servers) proc.kill(); fs.rmSync(profile, {recursive:true, force:true}); setTimeout(() => process.exit(), 500).unref(); });
+main().catch(e => { console.error(e); process.exitCode = 1; }).finally(() => { for (const proc of servers) proc.kill(); for (const file of cleanup) fs.rmSync(file, {force:true}); fs.rmSync(profile, {recursive:true, force:true}); setTimeout(() => process.exit(), 500).unref(); });

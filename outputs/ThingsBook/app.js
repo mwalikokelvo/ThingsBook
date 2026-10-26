@@ -1,7 +1,10 @@
 'use strict';
 const $ = id => document.getElementById(id);
 const DB_NAME = 'thingsbook-encrypted-v1', DB_VERSION = 2;
-const MAX_FILE = 100 * 1024 * 1024;
+// PDFs are streamed at import and opened by byte range, so they may be larger; other formats are
+// still read whole when imported and opened.
+const MAX_FILE = 100 * 1024 * 1024, MAX_PDF = 500 * 1024 * 1024;
+const isPdfFile = async file => { try { return new TextDecoder().decode(new Uint8Array(await file.slice(0,1024).arrayBuffer())).includes('%PDF-'); } catch { return false; } };
 const encoder = new TextEncoder(), decoder = new TextDecoder();
 let db, config, key, books = [], shelves = [], filter = 'all', view = 'shelf',libraryPage=0,libraryQuery='';
 let pendingBackup = null, activeBook = null, readerUrl = null, busy = false, idleTimer;
@@ -165,7 +168,7 @@ function pauseImport(){if(!importRun)return;importRun.paused=true;$('pause-impor
 function retainImportFiles(files){try{const transfer=new DataTransfer();for(const file of files)transfer.items.add(file);$('book-files').files=transfer.files;return true;}catch{$('book-files').value='';return false;}}
 async function upload(event) {
   event.preventDefault();if(busy)return;const files=[...$('book-files').files];if(!files.length)return;$('upload-error').textContent='';
-  for(const file of files){if(!file.size||file.size>MAX_FILE){$('upload-error').textContent=`${file.name}: choose a nonempty file under 100 MB.`;return;}}
+  for(const file of files){const limit=file.size>MAX_FILE&&file.size<=MAX_PDF&&await isPdfFile(file)?MAX_PDF:MAX_FILE;if(!file.size||file.size>limit){$('upload-error').textContent=file.size>MAX_FILE&&await isPdfFile(file)?`${file.name}: choose a PDF under 500 MB.`:`${file.name}: choose a nonempty file under 100 MB (PDFs up to 500 MB).`;return;}}
   const details={title:$('book-title').value.trim(),author:$('book-author').value.trim(),rating:Number($('book-rating').value),color:$('book-color').value,shelfId:$('shelf-select').value};
   const run={paused:false};importRun=run;busy=true;$('save-book').disabled=true;$('book-files').disabled=true;let saved=0,count=0,fallbackCount=0,remaining=[],failed=[],started=false;
   try{

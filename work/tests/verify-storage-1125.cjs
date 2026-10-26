@@ -91,6 +91,8 @@ async function main() {
   // Invalid uploads must not create a file; unsupported extensions and oversize.
   const invalid = new Blob(['not a pdf']); invalid.name = 'broken.pdf'; node('book-files').files = [invalid]; await run('upload({preventDefault(){}})'); assert.equal(memory.books.size,1); assert.match(node('upload-error').textContent,/valid PDF/);
   node('book-files').files = [{name:'huge.txt',size:101*1024*1024}]; await run('upload({preventDefault(){}})'); assert.equal(memory.books.size,1); assert.match(node('upload-error').textContent,/100 MB/);
+  // PDFs may be up to 500 MB (they are streamed); larger ones are refused with a PDF-specific message.
+  node('book-files').files = [{name:'huge.pdf',size:501*1024*1024,slice:() => new Blob(['%PDF-1.7 synthetic header'])}]; await run('upload({preventDefault(){}})'); assert.equal(memory.books.size,1); assert.match(node('upload-error').textContent,/PDF under 500 MB/);
   const chunks = []; let finished = false, cancelled = false;
   context.window.ThingsBookAndroid = {beginTransfer(name,mime,mode){assert.equal(mode,'export');return true;},writeChunk(chunk){assert(chunk.length<=140000);chunks.push(Buffer.from(chunk,'base64'));return true;},finishTransfer(){finished=true;return true;},cancelTransfer(){cancelled=true;}};
   context.androidPayload = new Blob(['sample data '.repeat(30000)],{type:'text/plain'});
