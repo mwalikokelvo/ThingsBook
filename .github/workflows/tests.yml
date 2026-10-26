@@ -21,11 +21,22 @@ jobs:
     timeout-minutes: 15
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0  # the upgrade test needs the previous release
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
-      - name: Run portable regression suite
-        run: node work/run-tests.cjs
+      - name: Browser test tools (Playwright and Chromium)
+        run: |
+          npm install --prefix work/test-tools --no-audit --no-fund playwright@1.63.0
+          node work/test-tools/node_modules/playwright/cli.js install --with-deps chromium
+      - name: Previous release, for the upgrade test
+        run: |
+          previous=$(git tag --list 'v*' --sort=-v:refname | head -n1)
+          git worktree add --detach "$RUNNER_TEMP/previous" "${previous:-c740c89}"
+          echo "THINGSBOOK_RELEASED_DIR=$RUNNER_TEMP/previous/outputs/ThingsBook" >> "$GITHUB_ENV"
+      - name: Run portable regression suite (Chromium tests must run)
+        run: node work/run-tests.cjs --require-browser
 
   core:
     name: Rust core

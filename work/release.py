@@ -168,4 +168,8 @@ def finish(args, version, built):
 
 
 if __name__ == '__main__':
-    main()
+    try:
+        main()
+    except subprocess.CalledProcessError as error:
+        command = ' '.join(Path(str(a)).name if i < 2 else str(a) for i, a in enumerate(error.cmd))
+        raise SystemExit(f'\nRelease stopped: `{command}` failed (exit {error.returncode}); see its output above. Nothing was committed or tagged.')
