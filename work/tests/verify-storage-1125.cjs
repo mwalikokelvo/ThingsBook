@@ -12,6 +12,9 @@ const source = fs.readFileSync(process.argv[2] || path.resolve('outputs/ThingsBo
 const vaultPath = path.join(path.dirname(process.argv[2] || path.resolve('outputs/ThingsBook/app.js')), 'vendor/vault.js');
 if (fs.existsSync(vaultPath)) vm.runInContext(fs.readFileSync(vaultPath,'utf8'),context);
 vm.runInContext(fs.readFileSync(path.join(path.dirname(vaultPath),'storage.js'),'utf8'),context);
+// THINGSBOOK_TEST_STREAM_BACKUP=1 forces backup version 2 so the same end-to-end path covers both formats.
+const streamBackup = process.env.THINGSBOOK_TEST_STREAM_BACKUP === '1', backupPath = path.join(path.dirname(vaultPath),'backup.js');
+if (fs.existsSync(backupPath)) { let code = fs.readFileSync(backupPath,'utf8'); if (streamBackup) { const forced = code.replace('const LEGACY_LIMIT = 256 * 1024 * 1024;','const LEGACY_LIMIT = 0;'); assert.notEqual(forced,code); code = forced; } vm.runInContext(code,context); }
 vm.runInContext(source,context);
 context.fakeDb = fakeDb;
 const run = code => vm.runInContext(code,context);
@@ -37,7 +40,7 @@ async function main() {
   await assert.rejects(run('unseal(testRecord)'));
   await run(`updateBook('${id}',{notes:'Page 42',status:'reading',rating:5,series:'Private series',year:2024,tags:['history'],progress:{location:3,percent:47,scratchpad:{3:{text:'Secret chapter reflection',created:123}},readingSeconds:120,tracking:0.04,measure:68,sleep:15},bookmarks:[{id:'mark',location:3}],highlights:[{id:'highlight',text:'private highlight'}],flashcards:[{id:'card',front:'Private recall question',back:'Private recall answer',schedule:{due:'2026-10-06T12:00:00.000Z'},reviews:[]}]})`);
   await run('backup()'); const backup = context.window.download.blob;
-  assert.equal(JSON.parse(await backup.text()).books.length,1);assert(!(await backup.text()).includes('Secret chapter reflection'));assert(!Buffer.from(memory.books.get(id).meta.data).includes(Buffer.from('Secret chapter reflection')));
+  if (streamBackup) assert((await backup.text()).startsWith('ThingsBook encrypted backup v2\n')); else assert.equal(JSON.parse(await backup.text()).books.length,1);assert(!(await backup.text()).includes('Secret chapter reflection'));assert(!Buffer.from(memory.books.get(id).meta.data).includes(Buffer.from('Secret chapter reflection')));
   assert(! (await backup.text()).includes('Private Author'));assert(!(await backup.text()).includes('Private recall question'));assert(!Buffer.from(memory.books.get(id).meta.data).includes(Buffer.from('Private recall answer')));
   await run('lock()'); assert.equal(run('key'),null); assert.equal(run('books.length'),0);
   node('password').value = 'Incorrect-password'; await run('unlock({preventDefault(){}})'); assert.equal(run('key'),null); assert.match(node('gate-error').textContent,/incorrect/);
