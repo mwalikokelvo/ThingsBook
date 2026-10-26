@@ -268,10 +268,13 @@ async function bookSource(id) {
   const record = await getRecord(id), book = books.find(b => b.id === id), vaultKey = key;
   if (!record?.chunks || !book || !vaultKey) return null;
   const SIZE = ThingsChunks.SIZE, size = record.chunks.bytes, cache = new Map(), stats = {decrypted:0,delivered:0};
+  // pdf.js can request dozens of ranges at once; decrypting one piece at a time keeps memory to a few pieces.
+  let turn = Promise.resolve();
+  const decrypt = index => { const run = turn.then(() => key === vaultKey ? ThingsChunks.piece(record,vaultKey,i => getChunk(id,i),index) : Promise.reject(new Error('The library is locked.'))); turn = run.catch(() => {}); return run; };
   const piece = index => {
     let pending = cache.get(index);
     if (pending) cache.delete(index);
-    else { pending = ThingsChunks.piece(record,vaultKey,i => getChunk(id,i),index); stats.decrypted++; pending.catch(() => cache.delete(index)); }
+    else { pending = decrypt(index); stats.decrypted++; pending.catch(() => cache.delete(index)); }
     cache.set(index,pending);
     while (cache.size > 4) cache.delete(cache.keys().next().value);
     return pending;
