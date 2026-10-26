@@ -43,12 +43,17 @@ def windows():
         DESKTOP / 'native/IndependentLauncher.cs')
     print('Windows build complete.', flush=True)
 
-def android(tools):
+def android(tools, jdk_home=None, sdk_root=None, signing=None):
+    # jdk_home/sdk_root override the bundled tools folder (e.g. JAVA_HOME and ANDROID_HOME on a build machine).
     build = ROOT / ('work/android-build-' + VERSION.replace('.', ''))
-    jdk = next((tools / 'jdk').iterdir()) / 'bin'
-    sdk = tools / 'sdk/build-tools/35.0.0'
-    platform = tools / 'sdk/platforms/android-35/android.jar'
-    signing = ROOT / 'work/thingsbook-signing'
+    jdk = (Path(jdk_home) if jdk_home else next((tools / 'jdk').iterdir())) / 'bin'
+    sdk_base = Path(sdk_root) if sdk_root else tools / 'sdk'
+    sdk = sdk_base / 'build-tools/35.0.0'
+    platform = sdk_base / 'platforms/android-35/android.jar'
+    for required in (jdk, sdk, platform):
+        if not required.exists():
+            raise RuntimeError(f'Android build tools not found: {required}')
+    signing = Path(signing) if signing else ROOT / 'work/thingsbook-signing'
     keystore, password = signing / 'thingsbook-release.jks', signing / 'password.txt'
     if not keystore.is_file() or not password.is_file():
         raise RuntimeError('Original signing material is required for an upgrade.')
@@ -89,8 +94,11 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument('platform', choices=['windows', 'android'])
     parser.add_argument('--android-tools', type=Path, default=ROOT.parent.parent / '2026-10-03/https-github-com-louis-cfm-coucou/work/android-tools')
+    parser.add_argument('--jdk', help='JDK home to use instead of the tools folder (for example JAVA_HOME)')
+    parser.add_argument('--sdk', help='Android SDK root to use instead of the tools folder (for example ANDROID_HOME)')
+    parser.add_argument('--signing', help='Folder holding thingsbook-release.jks and password.txt (default work/thingsbook-signing)')
     args = parser.parse_args()
     if args.platform == 'windows':
         windows()
     else:
-        android(args.android_tools.resolve())
+        android(args.android_tools.resolve(), args.jdk, args.sdk, args.signing)

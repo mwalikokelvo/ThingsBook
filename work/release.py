@@ -1,0 +1,116 @@
+"""Builds a complete ThingsBook release on a Windows PC, in one command.
+
+usage (from the repository root, on Windows):
+  python work\\release.py 1.13.0                      # Windows EXE + Android APK
+  python work\\release.py 1.13.0 --skip-android       # Windows EXE only
+  python work\\release.py 1.13.0 --jdk "C:\\...\\jdk" --sdk "C:\\...\\Android\\Sdk" --signing "D:\\keys"
+
+Steps, stopping at the first failure:
+  1. checks the checkout is `main`, clean, and not behind origin/main;
+  2. sets the version everywhere (work/set-version.py) and dates the CHANGELOG section;
+  3. runs the portable regression suite (node work/run-tests.cjs);
+  4. installs the desktop runtime if missing (npm ci) and builds the Rust core (cargo build --release);
+  5. builds the Windows EXE and the signed Android APK (work/build-apps.py), unless skipped;
+  6. writes outputs/ThingsBook-<version>-SHA256SUMS.txt and -Release-notes.md;
+  7. commits "Release <version>" and tags v<version> (push them yourself, or pass --push).
+
+Android signing uses your original key (work/thingsbook-signing by default, or --signing); it is
+read only by apksigner and never copied. Install the APK over the existing app: do not uninstall,
+which would remove the private on-device library.
+"""
+import argparse, hashlib, json, re, shutil, subprocess, sys
+from pathlib import Path
+
+ROOT = Path(__file__).resolve().parents[1]
+OUT = ROOT / 'outputs'
+
+
+def run(*args, cwd=ROOT):
+    print('>', ' '.join(str(a) for a in args), flush=True)
+    subprocess.run([str(a) for a in args], cwd=cwd, check=True)
+
+
+def git(*args):
+    return subprocess.run(['git', *args], cwd=ROOT, check=True, capture_output=True, text=True).stdout.strip()
+
+
+def tool(name):
+    found = shutil.which(name) or shutil.which(name + '.cmd') or shutil.which(name + '.exe')
+    if not found:
+        raise SystemExit(f'{name} is not on PATH; install it and retry.')
+    return found
+
+
+def notes(version):
+    text = (ROOT / 'CHANGELOG.md').read_text(encoding='utf-8')
+    match = re.search(rf'^## {re.escape(version)} — [^\n]*\n(.*?)(?=^## |\Z)', text, re.S | re.M)
+    return match.group(1).strip() if match else ''
+
+
+def main():
+    parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
+    parser.add_argument('version')
+    parser.add_argument('--skip-windows', action='store_true')
+    parser.add_argument('--skip-android', action='store_true')
+    parser.add_argument('--android-tools', help='Tools folder with jdk/ and sdk/ (build-apps.py default if omitted)')
+    parser.add_argument('--jdk'); parser.add_argument('--sdk'); parser.add_argument('--signing')
+    parser.add_argument('--push', action='store_true', help='Push the release commit and tag to origin')
+    parser.add_argument('--allow-dirty', action='store_true', help=argparse.SUPPRESS)
+    args = parser.parse_args()
+    version = args.version
+    if sys.platform != 'win32' and not args.skip_windows:
+        raise SystemExit('The Windows EXE needs Windows (.NET Framework csc). Use --skip-windows elsewhere.')
+
+    # 1. A clean, current main.
+    if git('rev-parse', '--abbrev-ref', 'HEAD') != 'main':
+        raise SystemExit('Check out main first.')
+    if git('status', '--porcelain') and not args.allow_dirty:
+        raise SystemExit('Commit or stash your changes first; a release is built from a clean checkout.')
+    run('git', 'fetch', '-q', 'origin', 'main')
+    if git('rev-list', '--count', 'HEAD..origin/main') != '0':
+        raise SystemExit('main is behind origin/main; run git pull first.')
+
+    # 2-3. Version, then the tests against the versioned tree.
+    run(sys.executable, ROOT / 'work/set-version.py', version, '--release-notes')
+    run(tool('node'), ROOT / 'work/run-tests.cjs')
+
+    # 4-5. Builds.
+    built = []
+    if not args.skip_windows:
+        desktop = ROOT / 'work/thingsbook-desktop'
+        if not (desktop / 'node_modules/electron/dist/electron.exe').exists():
+            run(tool('npm'), 'ci', cwd=desktop)
+        run(tool('cargo'), 'build', '--release', '--locked', '--bin', 'thingsbook-core', cwd=ROOT / 'core')
+        run(sys.executable, ROOT / 'work/build-apps.py', 'windows')
+        built.append(OUT / f'ThingsBook-Independent-{version}.exe')
+    if not args.skip_android:
+        extra = [f'--{k}={v}' for k, v in (('android-tools', args.android_tools), ('jdk', args.jdk), ('sdk', args.sdk), ('signing', args.signing)) if v]
+        run(sys.executable, ROOT / 'work/build-apps.py', 'android', *extra)
+        built.append(OUT / f'ThingsBook-Android-{version}.apk')
+    for file in built:
+        if not file.is_file():
+            raise SystemExit(f'Expected build output is missing: {file}')
+
+    # 6. Checksums and notes.
+    sums = OUT / f'ThingsBook-{version}-SHA256SUMS.txt'
+    sums.write_text(''.join(f'{hashlib.sha256(f.read_bytes()).hexdigest()}  {f.name}\n' for f in built), encoding='utf-8')
+    body = notes(version) or 'See CHANGELOG.md.'
+    (OUT / f'ThingsBook-{version}-Release-notes.md').write_text(
+        f'# ThingsBook {version}\n\n' + body + '\n\nInstall the Android APK over the existing app; do not uninstall, '
+        'which removes the private on-device library. Update every device before moving a library with a new backup.\n', encoding='utf-8')
+
+    # 7. Commit and tag (build outputs are release assets, not committed).
+    run('git', 'add', '-u')
+    run('git', 'commit', '-q', '-m', f'Release {version}')
+    run('git', 'tag', '-a', f'v{version}', '-m', f'ThingsBook {version}')
+    if args.push:
+        run('git', 'push', 'origin', 'main', f'v{version}')
+    print(f'\nThingsBook {version} is ready:')
+    for f in [*built, sums]:
+        print('  ', f)
+    if not args.push:
+        print(f'Push when you are happy with it:  git push origin main v{version}')
+
+
+if __name__ == '__main__':
+    main()

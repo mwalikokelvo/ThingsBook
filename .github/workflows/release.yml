@@ -1,0 +1,108 @@
+# Builds and publishes a ThingsBook release when a version tag (v1.13.0, ...) is pushed.
+# Make the tag with `python work/release.py <version> --skip-windows --skip-android` (or by hand after
+# `python work/set-version.py <version> --release-notes`), then `git push origin main v<version>`.
+#
+# The Windows EXE needs nothing secret. The Android APK must be signed with the ORIGINAL key, or it
+# cannot update installed copies; add these repository secrets to build it (Settings > Secrets and
+# variables > Actions), otherwise the release is published with the EXE only:
+#   ANDROID_KEYSTORE_BASE64   base64 of thingsbook-release.jks
+#   ANDROID_KEYSTORE_PASSWORD the keystore password (alias "thingsbook")
+name: Release
+
+on:
+  push:
+    tags: ['v*']
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: Existing tag to build (for example v1.13.0)
+        required: true
+
+permissions:
+  contents: write
+
+concurrency:
+  group: release-${{ github.event.inputs.tag || github.ref_name }}
+  cancel-in-progress: false
+
+jobs:
+  release:
+    runs-on: windows-latest
+    timeout-minutes: 60
+    env:
+      TAG: ${{ github.event.inputs.tag || github.ref_name }}
+      HAS_KEYSTORE: ${{ secrets.ANDROID_KEYSTORE_BASE64 != '' && secrets.ANDROID_KEYSTORE_PASSWORD != '' }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ env.TAG }}
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Check the tag matches the app version
+        shell: pwsh
+        run: |
+          $version = (Get-Content work/thingsbook-desktop/package.json -Raw | ConvertFrom-Json).version
+          if ("v$version" -ne $env:TAG) { throw "Tag $env:TAG does not match package.json version $version. Run work/set-version.py first." }
+          "VERSION=$version" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
+      - name: Portable regression suite
+        run: node work/run-tests.cjs
+      - name: Desktop runtime
+        working-directory: work/thingsbook-desktop
+        run: npm ci
+      - uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            core/target
+          key: cargo-release-${{ runner.os }}-${{ hashFiles('core/Cargo.lock') }}
+      - name: Rust core
+        working-directory: core
+        run: cargo build --release --locked --bin thingsbook-core
+      - name: Windows EXE
+        run: python work/build-apps.py windows
+      - name: Android APK (signed with the original key)
+        if: env.HAS_KEYSTORE == 'true'
+        shell: pwsh
+        env:
+          KEYSTORE: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+          KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+        run: |
+          $sdkmanager = Get-ChildItem "$env:ANDROID_HOME\cmdline-tools" -Recurse -Filter sdkmanager.bat | Select-Object -First 1
+          if (-not (Test-Path "$env:ANDROID_HOME\build-tools\35.0.0") -or -not (Test-Path "$env:ANDROID_HOME\platforms\android-35")) {
+            (1..20 | ForEach-Object { 'y' }) | & $sdkmanager.FullName --sdk_root="$env:ANDROID_HOME" 'build-tools;35.0.0' 'platforms;android-35' | Out-Null
+          }
+          $signing = Join-Path $env:RUNNER_TEMP 'signing'
+          New-Item -ItemType Directory -Force $signing | Out-Null
+          try {
+            [IO.File]::WriteAllBytes((Join-Path $signing 'thingsbook-release.jks'), [Convert]::FromBase64String($env:KEYSTORE))
+            [IO.File]::WriteAllText((Join-Path $signing 'password.txt'), $env:KEYSTORE_PASSWORD)
+            python work/build-apps.py android --jdk "$env:JAVA_HOME_17_X64" --sdk "$env:ANDROID_HOME" --signing "$signing"
+            if ($LASTEXITCODE -ne 0) { throw "Android build failed ($LASTEXITCODE)." }
+          } finally { Remove-Item -Recurse -Force $signing }
+      - name: Checksums and release notes
+        shell: pwsh
+        run: |
+          $names = @("ThingsBook-Independent-$env:VERSION.exe", "ThingsBook-Android-$env:VERSION.apk")
+          $files = Get-ChildItem outputs -File | Where-Object { $names -contains $_.Name }
+          if (-not $files) { throw 'No build outputs found.' }
+          $files | ForEach-Object { "{0}  {1}" -f (Get-FileHash $_.FullName -Algorithm SHA256).Hash.ToLower(), $_.Name } |
+            Set-Content "outputs/ThingsBook-$env:VERSION-SHA256SUMS.txt" -Encoding utf8
+          $changelog = Get-Content CHANGELOG.md -Raw -Encoding utf8
+          $section = [regex]::Match($changelog, "(?ms)^## $([regex]::Escape($env:VERSION)) — [^\n]*\n(.*?)(?=^## |\z)").Groups[1].Value.Trim()
+          if (-not $section) { $section = 'See CHANGELOG.md.' }
+          $notes = $section + "`n`nInstall the Android APK over the existing app; do not uninstall, which removes the private on-device library. Update every device before moving a library with a new backup."
+          if (-not (Test-Path "outputs/ThingsBook-Android-$env:VERSION.apk")) { $notes += "`n`nThis release has no Android APK: the signing secrets are not set." }
+          Set-Content "$env:RUNNER_TEMP/release-notes.md" $notes -Encoding utf8
+      - name: Publish the GitHub release
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          $assets = @("ThingsBook-Independent-$env:VERSION.exe", "ThingsBook-Android-$env:VERSION.apk", "ThingsBook-$env:VERSION-SHA256SUMS.txt") |
+            ForEach-Object { Join-Path outputs $_ } | Where-Object { Test-Path $_ }
+          gh release create $env:TAG @assets --title "ThingsBook $env:VERSION" --notes-file "$env:RUNNER_TEMP/release-notes.md" --verify-tag

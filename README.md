@@ -50,6 +50,17 @@ node work/run-tests.cjs --list     # show what would run or be skipped
 
 This does not replace the Windows runtime checks or the release verifier.
 
+### Making a release
+
+On a Windows PC with Node, Rust, the .NET Framework compiler and the Android tools in place, one command sets the version everywhere, dates the changelog, runs the tests, builds the EXE and the signed APK, writes checksums and notes to `outputs/`, and commits and tags the release:
+
+```powershell
+python work\release.py 1.13.0            # add --push to push main and the tag
+python work\release.py 1.13.0 --skip-android
+```
+
+`python work/set-version.py <version>` changes only the version numbers. Pushing a `v<version>` tag also runs `.github/workflows/release.yml`, which builds on GitHub's Windows runner and publishes a GitHub release. It always builds the EXE. It builds the APK only when the `ANDROID_KEYSTORE_BASE64` and `ANDROID_KEYSTORE_PASSWORD` repository secrets hold the original signing key.
+
 ## Project status
 
 Release 1.12.5 is a matched Windows/Android release, but the broader Unified v5 rebuild is still in progress. Native Android storage/search migration, sustained background/full-book endurance, semantic search, private sync, precise EPUB CFI annotations, and parts of the native-shell roadmap remain unfinished. See `Start-here.txt` for the current release boundary.
