@@ -14,6 +14,12 @@ Source changes merged into `main`; not yet packaged. Build the Windows EXE and A
   Legacy .doc and password-protected files explain how to save a usable copy.
 - **FictionBook (.fb2, .fb2.zip, .fbz)** import as EPUB, including footnotes, poems and
   non-UTF-8 encodings such as windows-1251.
+- **Markdown (.md) and saved web pages (.html, .htm)** import as EPUB, with chapters at top-level
+  headings, tables, code, links and embedded images. Title and author come from Markdown front matter
+  or the page's meta tags; a page's article is kept without its site menus. Nothing in the file runs
+  or is fetched: scripts, styles, frames and forms are removed, and images that are not embedded in
+  the file show their description instead. Markdown uses marked 18.0.14 (MIT), loaded only when a
+  Markdown file is imported.
 - **Precise highlights.** Highlighting a few words marks only those words instead of the whole
   passage; highlights from earlier versions still mark their whole passage.
 - **Comic archives (.cbz)** import as EPUB, one page per image in natural order, with title and

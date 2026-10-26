@@ -19,6 +19,35 @@ const ThingsEpubWriter = (() => {
     return '<?xml version="1.0" encoding="utf-8"?>\n' + new XMLSerializer().serializeToString(out);
   }
 
+  // Splits an HTML body into EPUB parts: a new part starts at each top-level h1 that follows content,
+  // and the table of contents lists h1 and h2. Internal "#id" links are pointed at the part holding
+  // the id. Returns {parts:[{path, title, xhtml}], toc}.
+  function chapters(body, {fallback = 'Untitled', stylesheets = []} = {}) {
+    const doc = body.ownerDocument, chunks = [];
+    for (const node of [...body.childNodes]) {
+      if ((node.nodeName === 'H1' && chunks.at(-1)?.nodes.some(n => n.textContent.trim() || n.querySelector?.('img'))) || !chunks.length) chunks.push({nodes:[]});
+      chunks.at(-1).nodes.push(node);
+    }
+    let anchor = 0;
+    const parts = [], toc = [];
+    for (const [index, chunk] of chunks.entries()) {
+      const path = `part${index}.xhtml`, container = doc.createElement('div');
+      container.append(...chunk.nodes);
+      if (!container.textContent.trim() && !container.querySelector('img, table')) continue;
+      for (const heading of container.querySelectorAll('h1, h2')) {
+        if (!heading.id) heading.id = `tb-h${++anchor}`;
+        const entry = {href:`${path}#${heading.id}`, label:heading.textContent.trim() || 'Untitled', children:[]};
+        if (heading.nodeName === 'H2' && toc.length) toc.at(-1).children.push(entry); else toc.push(entry);
+      }
+      const title = container.querySelector('h1, h2')?.textContent.trim() || (parts.length ? `Part ${parts.length + 1}` : fallback);
+      parts.push({path, title, xhtml:xhtml(title, container.innerHTML, stylesheets)});
+    }
+    const located = new Map();
+    for (const part of parts) for (const id of part.xhtml.matchAll(/\sid="([^"]+)"/g)) located.set(id[1], part.path);
+    for (const part of parts) part.xhtml = part.xhtml.replace(/href="#([^"]+)"/g, (all, id) => located.has(id) ? `href="${located.get(id)}#${id}"` : all);
+    return {parts, toc};
+  }
+
   // book: {title, authors[], language, publisher, description, date, identifier,
   //        parts:[{path, title, xhtml}], resources:[{path, type, data, properties}], toc:[{href, label, children}]}
   function build(book, zip = globalThis.ThingsArchiveLib) {
@@ -44,6 +73,6 @@ ${cover ? `<meta name="cover" content="${cover.id}"/>` : ''}<meta property="dcte
     return zip.zipSync(entries, {level:6});
   }
 
-  return Object.freeze({build, xhtml, escape});
+  return Object.freeze({build, xhtml, escape, chapters});
 })();
 if (typeof module !== 'undefined') module.exports = ThingsEpubWriter;

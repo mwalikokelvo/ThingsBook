@@ -42,10 +42,13 @@ window.ThingsImport = (() => {
     }
     // Compound File (legacy .doc, or an encrypted .docx): not readable without Word.
     if(bytes.length>8&&[0xd0,0xcf,0x11,0xe0,0xa1,0xb1,0x1a,0xe1].every((b,i)=>bytes[i]===b))throw new Error('Older Word (.doc) files and password-protected Word documents are not supported. Save it as a .docx without a password, then import it.');
+    // Markdown and saved web pages: converted to EPUB on import.
+    if(['md','markdown','mdown','mkd'].includes(extension))return 'MD';
+    if(['html','htm','xhtml'].includes(extension))return 'HTML';
     if(extension==='pdf')throw new Error('This file does not appear to be a valid PDF.');
     if(extension==='epub')throw new Error('This file does not appear to be an EPUB archive.');
     if(extension==='txt')return 'TXT';
-    throw new Error('Choose PDF, EPUB or TXT books, or DRM-free Kindle (MOBI/AZW3) Word (.docx), FictionBook (.fb2) and comic (.cbz) books; the file contents were not recognized.');
+    throw new Error('Choose PDF, EPUB or TXT books, or DRM-free Kindle (MOBI/AZW3) Word (.docx), FictionBook (.fb2), comic (.cbz), Markdown (.md) and web page (.html) books; the file contents were not recognized.');
   }
   function xml(bytes) {
     const text = ReaderCore.decodeText(bytes);
