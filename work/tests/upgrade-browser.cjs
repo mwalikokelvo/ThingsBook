@@ -90,7 +90,7 @@ async function main() {
   await app.page.evaluate(async () => { window.__backup = await backupBlob(new Date().toISOString()); });
   const head = await app.page.evaluate(async () => ({v2:(await window.__backup.slice(0, 31).text()) === ThingsBackup.MAGIC, size:window.__backup.size, kinds:(await ThingsBackup.read(window.__backup)).books.map(b => b.chunks ? `chunked:${b.parts.length}` : 'whole')}));
   assert.equal(head.v2, true); assert.deepEqual(head.kinds.sort(), converts ? ['chunked:2', 'chunked:3'] : ['chunked:3', 'whole']);
-  await app.page.evaluate(id => transaction(['books', 'chunks'], tx => deleteBooks(tx, [id])), newId);
+  await app.page.evaluate(id => transaction(['books', 'chunks', 'ocr'], tx => deleteBooks(tx, [id])), newId);
   assert.equal(await app.page.evaluate(id => request(db.transaction('chunks').objectStore('chunks').getAllKeys()).then(k => k.filter(x => x[0] === id).length), newId), 0);
   await app.page.evaluate(() => restoreFile(new File([window.__backup], 'library.thingsbook')));
   await app.page.waitForFunction(() => !!pendingBackup && !key, null, {timeout:30000});

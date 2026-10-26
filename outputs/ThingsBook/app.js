@@ -1,6 +1,6 @@
 'use strict';
 const $ = id => document.getElementById(id);
-const DB_NAME = 'thingsbook-encrypted-v1', DB_VERSION = 3;
+const DB_NAME = 'thingsbook-encrypted-v1', DB_VERSION = 4;
 // PDFs are streamed at import and opened by byte range, so they may be larger; other formats are
 // still read whole when imported and opened.
 const MAX_FILE = 100 * 1024 * 1024, MAX_PDF = 500 * 1024 * 1024;
@@ -32,10 +32,16 @@ const chunkRange = id => IDBKeyRange.bound([id,0],[id,Number.MAX_SAFE_INTEGER]);
 async function getChunk(id,index) { return request(db.transaction('chunks').objectStore('chunks').get([id,index])); }
 async function removeChunks(id) { await transaction(['chunks'],tx => tx.objectStore('chunks').delete(chunkRange(id))); }
 // Deletes a book record and its pieces together.
-function deleteBooks(tx,ids) { for (const id of ids) { tx.objectStore('books').delete(id); tx.objectStore('chunks').delete(chunkRange(id)); } }
+function deleteBooks(tx,ids) { for (const id of ids) { tx.objectStore('books').delete(id); tx.objectStore('chunks').delete(chunkRange(id)); if (tx.objectStoreNames?.contains?.('ocr') ?? true) tx.objectStore('ocr').delete(chunkRange(id)); } }
+// Recognized (OCR) page text, kept per book and page and sealed with the library key. The book id and page are
+// sealed inside and checked when read, so a record moved to another book or page is ignored.
+async function saveRecognizedPage(id,page,value) { const vaultKey = key; if (!vaultKey || !books.some(b => b.id === id) || !Number.isInteger(page) || page < 0) return; const sealed = await ThingsVault.sealJSON({book:id,page,text:String(value?.text || '').slice(0,40000),confidence:Number(value?.confidence) || 0},vaultKey); if (key !== vaultKey) return; await transaction(['ocr'],tx => tx.objectStore('ocr').put({book:id,page,...sealed})); }
+async function loadRecognizedPage(id,page) { const vaultKey = key; if (!vaultKey || !Number.isInteger(page)) return null; const record = await request(db.transaction('ocr').objectStore('ocr').get([id,page])); if (!record) return null; try { const value = await ThingsVault.readJSON(record,vaultKey); return value.book === id && value.page === page && typeof value.text === 'string' && value.text ? {text:value.text,confidence:value.confidence} : null; } catch { return null; } }
 // Pieces whose book record never got written (an interrupted import) are removed after unlock.
 // Books still being imported are skipped: their record is written only after their pieces.
 const importingBooks = new Set();
+// Recognized text whose book no longer exists is removed after unlock.
+async function removeOrphanRecognizedText() { const keys = await request(db.transaction('ocr').objectStore('ocr').getAllKeys()), ids = new Set(await request(db.transaction('books').objectStore('books').getAllKeys())); const orphans = [...new Set(keys.map(k => k[0]))].filter(id => !ids.has(id)); if (orphans.length) await transaction(['books','ocr'],tx => { for (const id of orphans) { const check = tx.objectStore('books').get(id); check.onsuccess = () => { if (!check.result) tx.objectStore('ocr').delete(chunkRange(id)); }; } }); return orphans.length; }
 async function removeOrphanChunks() { const keys = await request(db.transaction('chunks').objectStore('chunks').getAllKeys()), ids = await request(db.transaction('books').objectStore('books').getAllKeys()); const known = new Set(ids), candidates = [...new Set(keys.map(k => k[0]))].filter(id => !known.has(id) && !importingBooks.has(id)); let removed = 0;
   // Re-check inside one books+chunks transaction, which IndexedDB orders against an import's record write.
   if (candidates.length) await transaction(['books','chunks'],tx => { for (const id of candidates) { const check = tx.objectStore('books').get(id); check.onsuccess = () => { if (!check.result && !importingBooks.has(id)) { tx.objectStore('chunks').delete(chunkRange(id)); removed++; } }; } }); return removed; }
@@ -141,12 +147,12 @@ async function unlock(event) {
       if (saveAccess) remembered = await ThingsDeviceAccess.remember(password,candidateKey,Array.from(source.check.iv).join(','));
       // Reopening an already remembered library is read-only: low disk space
       // must not prevent access merely because another key write would fail.
-      if (saveAccess || pendingBackup) await transaction(pendingBackup ? ['settings','books','chunks','staging'] : ['settings'], tx => {
+      if (saveAccess || pendingBackup) await transaction(pendingBackup ? ['settings','books','chunks','staging','ocr'] : ['settings'], tx => {
         if (pendingBackup) swapStaged(tx,pendingBackup);
         tx.objectStore('settings').put(updated,'vault'); tx.objectStore('settings').put(remembered,'device-access');
       });
       pendingBackup = null; config = updated; key = candidateKey; shelves = decodedShelves; books = decodedBooks;
-      removeOrphanChunks().catch(() => {}); migrateBooks().catch(() => {});
+      removeOrphanChunks().catch(() => {}); removeOrphanRecognizedText().catch(() => {}); migrateBooks().catch(() => {});
     } else {
       key = candidateKey; const initial = [{id:crypto.randomUUID(),name:'My collection'}];
       const created = {version:1,salt,check:await seal(encoder.encode('ThingsBook vault v1')),library:await sealJSON(initial),recovery:await seal(encoder.encode(password))};
@@ -295,7 +301,7 @@ function showDetail(id) {
   }
   const save = el('button','primary wide','Save details'); form.append(save);
   form.onsubmit = async e => { e.preventDefault(); if (busy) return; busy = true; save.disabled = true; try { if (!title.value.trim()) throw new Error('Enter a title.'); let customCover=importedCover===undefined?book.cover||null:importedCover;if(clearCover.checked)customCover=null;if(coverInput.files[0])customCover=await makeCover(coverInput.files[0]);await updateBook(id,{cover:customCover,title:title.value.trim(),author:author.value.trim() || 'Unknown author',publisher:publisher.value.trim(),shelfId:shelfSelect.value,status:status.value,rating:Number(rating.value),notes:notes.value,series:series.value.trim(),seriesNumber:seriesNumber.value.trim(),year:year.value?Number(year.value):null,tags:window.SanctuaryCore?.tags(tags.value)||[]}); $('detail-dialog').close(); toast('Book details saved.'); } catch(e) { toast(e.message === 'Enter a title.' ? e.message : storageError(e)); } finally { busy = false; save.disabled = false; } };
-  content.append(form); const remove = el('button','text-button danger','Remove this book'); remove.onclick = async () => { if (busy || !confirm(`Remove “${book.title}” and its stored file from this library?`)) return; busy = true; try { await transaction(['books','chunks'],tx => deleteBooks(tx,[id])); books = books.filter(b => b.id !== id); $('detail-dialog').close(); render(); toast('Book removed.'); } catch(e) { toast(storageError(e)); } finally { busy = false; } }; content.append(remove);
+  content.append(form); const remove = el('button','text-button danger','Remove this book'); remove.onclick = async () => { if (busy || !confirm(`Remove “${book.title}” and its stored file from this library?`)) return; busy = true; try { await transaction(['books','chunks','ocr'],tx => deleteBooks(tx,[id])); books = books.filter(b => b.id !== id); $('detail-dialog').close(); render(); toast('Book removed.'); } catch(e) { toast(storageError(e)); } finally { busy = false; } }; content.append(remove);
   if (!$('detail-dialog').open) $('detail-dialog').showModal();
 }
 async function nativeTransfer(blob, filename, mode) {
@@ -337,7 +343,7 @@ async function stageRestore(pending,vaultKey) {
 }
 function swapStaged(tx,pending) {
   const books = tx.objectStore('books'), chunks = tx.objectStore('chunks'), staging = tx.objectStore('staging'), byId = new Map(pending.books.map(record => [record.id,record]));
-  books.clear(); chunks.clear();
+  books.clear(); chunks.clear(); tx.objectStore('ocr').clear(); /* recognized text belonged to the replaced library */
   for (const record of pending.books) if (record.chunks) books.put({id:record.id,meta:record.meta,chunks:record.chunks});
   const cursor = staging.openCursor();
   cursor.onsuccess = () => { const current = cursor.result; if (!current) { staging.clear(); return; } const value = current.value; if (value.index < 0) books.put({id:value.book,meta:byId.get(value.book).meta,file:{iv:value.iv,data:value.data}}); else chunks.put(value); current.continue(); };
@@ -422,8 +428,8 @@ async function restoreFile(file) { if (!file || busy) return; busy = true; try {
 } catch (e) { toast(e?.code === 'newer' || e?.code === 'truncated' ? e.message : 'This is not a valid ThingsBook encrypted backup.'); } finally { busy = false; $('backup-file').value = ''; } }
 async function init() {
   try { if (!crypto.subtle || !window.indexedDB) throw new Error('Use Start ThingsBook.cmd to open this app at its localhost address.');
-    // Version 2 adds the "chunks" store and version 3 the "staging" store; existing settings and books are untouched.
-    const opening = indexedDB.open(DB_NAME,DB_VERSION); opening.onupgradeneeded = () => { if(!opening.result.objectStoreNames.contains('settings'))opening.result.createObjectStore('settings');if(!opening.result.objectStoreNames.contains('books'))opening.result.createObjectStore('books',{keyPath:'id'});if(!opening.result.objectStoreNames.contains('chunks'))opening.result.createObjectStore('chunks',{keyPath:['book','index']});if(!opening.result.objectStoreNames.contains('staging'))opening.result.createObjectStore('staging',{keyPath:['book','index']}); }; db = await request(opening); db.onversionchange = () => { db.close(); location.reload(); }; config = await request(db.transaction('settings').objectStore('settings').get('vault')); hasDeviceAccess = !!(config && await request(db.transaction('settings').objectStore('settings').get('device-access'))); gateState();
+    // Version 2 adds the "chunks" store, version 3 "staging" and version 4 "ocr"; existing settings and books are untouched.
+    const opening = indexedDB.open(DB_NAME,DB_VERSION); opening.onupgradeneeded = () => { if(!opening.result.objectStoreNames.contains('settings'))opening.result.createObjectStore('settings');if(!opening.result.objectStoreNames.contains('books'))opening.result.createObjectStore('books',{keyPath:'id'});if(!opening.result.objectStoreNames.contains('chunks'))opening.result.createObjectStore('chunks',{keyPath:['book','index']});if(!opening.result.objectStoreNames.contains('staging'))opening.result.createObjectStore('staging',{keyPath:['book','index']});if(!opening.result.objectStoreNames.contains('ocr'))opening.result.createObjectStore('ocr',{keyPath:['book','page']}); }; db = await request(opening); db.onversionchange = () => { db.close(); location.reload(); }; config = await request(db.transaction('settings').objectStore('settings').get('vault')); hasDeviceAccess = !!(config && await request(db.transaction('settings').objectStore('settings').get('device-access'))); gateState();
   } catch(e) { $('gate-error').textContent = e.message || 'Browser storage is unavailable. Use a normal browser window.'; $('unlock-button').disabled = true; return; }
   $('unlock-form').addEventListener('submit',unlock); $('lock').onclick = lock;
   $('cancel-restore').onclick = () => { if (!busy) { pendingBackup = null; gateState(); } };

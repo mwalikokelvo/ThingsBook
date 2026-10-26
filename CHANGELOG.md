@@ -22,6 +22,10 @@ Source changes merged into `main`; not yet packaged. Build the Windows EXE and A
   byte range); a match opens the book on its page. Scanned PDFs are still searched inside each book.
 - **Compare PDFs side by side.** The comparison pane now accepts PDFs (including two different PDF
   books): pages are listed and each page's text is shown when chosen; the PDF is read by byte range.
+- **Recognized text is kept.** Text recognized on a scanned PDF page is saved, encrypted, with the book
+  (per page; the book and page are sealed inside and checked), so the page shows it again after
+  closing or restarting and library search includes it. Removing a book removes it. Recognized
+  text is not yet included in backups; recognize pages again after restoring.
 
 ### Faster and lighter
 - New books are stored as 4 MiB encrypted pieces (IndexedDB "chunks" store; each piece is bound
@@ -53,7 +57,7 @@ Source changes merged into `main`; not yet packaged. Build the Windows EXE and A
   "rendering cancelled" error; a cancelled page render now just stops.
 
 ### Compatibility
-- Database version 3 only adds the "chunks" and "staging" stores; libraries upgrade in place (tested
+- Database version 4 only adds the "chunks", "staging" and "ocr" stores; libraries upgrade in place (tested
   in Chromium against a 1.12.5 profile).
 - **Going back to 1.12.5 after updating:** the library still unlocks, but books stored as pieces
   (all new imports and, after background conversion, older books too) do not open there. Nothing is

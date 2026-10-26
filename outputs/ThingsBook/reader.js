@@ -155,6 +155,8 @@ const ThingsReader = (() => {
       let text=''; for (const item of content.items) if ('str' in item) text+=item.str+(item.hasEOL?'\n':' ');
       const transcript=document.createElement('article');transcript.className='reading-article';const label=document.createElement('p');label.className='pdf-transcript-label';label.textContent='PAGE TEXT · SELECT, HIGHLIGHT OR LISTEN';const split=document.createElement('div'),visual=document.createElement('section'),textPane=document.createElement('section');split.className='reader-split-view';visual.className='reader-pane-visual';textPane.className='reader-pane-text';visual.setAttribute('aria-label','PDF page image');textPane.setAttribute('aria-label','Readable PDF text');visual.tabIndex=textPane.tabIndex=0;visual.append(canvas);textPane.append(label,transcript);split.append(visual,textPane);staging.replaceChildren(split);textPane.addEventListener('scroll',()=>{if(q('reader-layout').value==='concurrent'){scheduleSave();rememberVisiblePassage();}},{passive:true});
       current.pdfCanvas=canvas;current.pdfTranscript=transcript;current.pdfTextLabel=label;
+      // Text recognized earlier is kept with the book; use it when this page was recognized before.
+      if(!current.ocrPages?.has(current.location)&&typeof loadRecognizedPage==='function'){const saved=await loadRecognizedPage(current.id,current.location).catch(()=>null);if(session!==current||requestEpoch!==epoch)return;if(saved){current.ocrPages ||= new Map();current.ocrPages.set(current.location,saved);}}
       const cached=current.ocrPages?.get(current.location);if(cached){text=cached.text;label.textContent='RECOGNIZED PAGE TEXT · CHECK FOR RECOGNITION ERRORS';}
       for (const p of ReaderCore.paragraphs(text)) { const node=document.createElement('p');node.textContent=p;transcript.append(node); } paragraphize(transcript);
       say(text.trim() ? 'PDF ready. Narration uses the page text shown below.' : 'Scanned page: choose Recognize page to create readable English text on your device.');
@@ -183,7 +185,7 @@ const ThingsReader = (() => {
       const result=await window.ThingsOCR.recognize(current.pdfCanvas,message=>{if(fresh())say(message);});
       if(!fresh())return false;
       if(!result.text){say('No English text was recognized on this page. The scan may be unclear or contain only an illustration.');return false;}
-      if(result.text.length>40000){throw new Error('This page contains too much recognized text. Use a smaller page scan.');}const text=result.text;current.ocrPages ||= new Map();current.ocrPages.delete(location);current.ocrPages.set(location,{text,confidence:result.confidence});
+      if(result.text.length>40000){throw new Error('This page contains too much recognized text. Use a smaller page scan.');}const text=result.text;current.ocrPages ||= new Map();current.ocrPages.delete(location);current.ocrPages.set(location,{text,confidence:result.confidence});if(typeof saveRecognizedPage==='function')saveRecognizedPage(current.id,location,{text,confidence:result.confidence}).catch(()=>{});
       while(current.ocrPages.size>64)current.ocrPages.delete(current.ocrPages.keys().next().value);
       current.pdfTranscript.replaceChildren();for(const value of ReaderCore.paragraphs(text)){const p=document.createElement('p');p.textContent=value;current.pdfTranscript.append(p);}paragraphize(current.pdfTranscript);
       current.pdfTextLabel.textContent='RECOGNIZED PAGE TEXT · CHECK FOR RECOGNITION ERRORS';current.paragraph=0;

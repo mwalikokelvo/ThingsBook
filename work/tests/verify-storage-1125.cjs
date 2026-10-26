@@ -5,10 +5,10 @@ const {webcrypto} = require('node:crypto');
 const path = require('node:path');
 const nodes = new Map();
 function node(id) { if (!nodes.has(id)) nodes.set(id,{value:'',textContent:'',hidden:false,disabled:false,required:false,files:[],classList:{add(){},remove(){},toggle(){}},replaceChildren(){},focus(){},reset(){},close(){},showModal(){}}); return nodes.get(id); }
-const memory = {settings:new Map(), books:new Map(), chunks:new Map(), staging:new Map()};
+const memory = {settings:new Map(), books:new Map(), chunks:new Map(), staging:new Map(), ocr:new Map()};
 // Minimal IndexedDB stand-in. "chunks" and "staging" use the compound key [book, index]; a key range covers
 // one book. Like IndexedDB, a readwrite transaction completes only after its pending requests have finished.
-const compound = name => name === 'chunks' || name === 'staging';
+const compound = name => name === 'chunks' || name === 'staging' || name === 'ocr';
 const storeKey = (name, key) => compound(name) ? JSON.stringify(key) : key;
 const inRange = (name, key, range) => compound(name) && JSON.parse(key)[0] === range.lower[0];
 const fakeDb = {transaction(stores,mode) { let pending = 0;
@@ -19,7 +19,7 @@ const fakeDb = {transaction(stores,mode) { let pending = 0;
   getAll(){ return request(() => [...map.values()]); },
   getAllKeys(){ return request(() => [...map.keys()].map(k => compound(name) ? JSON.parse(k) : k)); },
   count(){ return request(() => map.size); },
-  put(value,id){ map.set(compound(name) ? storeKey(name,[value.book,value.index]) : id || value.id, structuredClone(value)); },
+  put(value,id){ map.set(compound(name) ? storeKey(name,[value.book,name === 'ocr' ? value.page : value.index]) : id || value.id, structuredClone(value)); },
   add(value){ assert(!map.has(value.id)); map.set(value.id, structuredClone(value)); },
   clear(){ map.clear(); },
   delete(key){ if (key && key.lower !== undefined) { for (const k of [...map.keys()]) if (inRange(name,k,key)) map.delete(k); } else map.delete(storeKey(name,key)); }

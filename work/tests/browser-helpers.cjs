@@ -28,13 +28,14 @@ async function serve(dir) {
 }
 
 // A valid PDF: catalog, pages, one font, and per page a content stream followed by an unused filler stream.
-function syntheticPdf(PAGES = 12, FILLER = 2.5 * 1024 * 1024) {
+// Pages listed in `blank` have no text layer, like a scanned page.
+function syntheticPdf(PAGES = 12, FILLER = 2.5 * 1024 * 1024, blank = []) {
   const objects = [];
   const add = body => { objects.push(body); return objects.length; };
   const catalog = add(null), pages = add(null), font = add(Buffer.from('<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>'));
   const kids = [];
   for (let n = 1; n <= PAGES; n++) {
-    const text = Buffer.from(`BT /F1 28 Tf 72 700 Td (Page ${n} of ${PAGES}: marker-${n}) Tj ET`);
+    const text = Buffer.from(blank.includes(n) ? '0.5 g 72 72 468 648 re f' : `BT /F1 28 Tf 72 700 Td (Page ${n} of ${PAGES}: marker-${n}) Tj ET`);
     const content = add(Buffer.concat([Buffer.from(`<< /Length ${text.length} >>\nstream\n`), text, Buffer.from('\nendstream')]));
     kids.push(add(Buffer.from(`<< /Type /Page /Parent ${pages} 0 R /MediaBox [0 0 612 792] /Resources << /Font << /F1 ${font} 0 R >> >> /Contents ${content} 0 R >>`)));
     const filler = crypto.randomBytes(FILLER);
