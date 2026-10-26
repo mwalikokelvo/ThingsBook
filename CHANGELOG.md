@@ -14,6 +14,8 @@ Source changes merged into `main`; not yet packaged. Build the Windows EXE and A
   Legacy .doc and password-protected files explain how to save a usable copy.
 - **FictionBook (.fb2, .fb2.zip, .fbz)** import as EPUB, including footnotes, poems and
   non-UTF-8 encodings such as windows-1251.
+- **Precise highlights.** Highlighting a few words marks only those words instead of the whole
+  passage; highlights from earlier versions still mark their whole passage.
 - **Comic archives (.cbz)** import as EPUB, one page per image in natural order, with title and
   writer from ComicInfo.xml.
 - **PDFs up to 500 MB.** Other formats keep the 100 MB limit.
