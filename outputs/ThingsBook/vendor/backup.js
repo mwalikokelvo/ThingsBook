@@ -92,11 +92,18 @@ const ThingsBackup = (() => {
       const record = await load(id);
       if (!record || record.id !== id) throw new Error('A book changed while the backup was being written. Try again.');
       if (record.chunks) {
-        // Chunked book: record.parts are its stored pieces, in order, still sealed.
-        const parts = record.parts;
-        if (!Array.isArray(parts) || parts.length !== record.chunks.count || parts.some((p, i) => p.book !== id || p.index !== i)) throw new Error('A book file is incomplete. Restore it from a backup before backing up.');
-        const pieces = parts.map(p => bytesOf(p.data));
-        blob = new Blob([blob, ...frame({id, meta:pack(record.meta), chunks:{count:record.chunks.count, bytes:record.chunks.bytes}, file:{segments:parts.map((p, i) => ({iv:b64(p.iv), size:pieces[i].byteLength}))}}), ...pieces]);
+        // Chunked book: its stored pieces, in order, still sealed. Either record.parts holds them all, or
+        // record.partInfo lists each piece's {book, index, iv, size} and record.partData(index) loads one
+        // stored piece {iv, data}, so a large book is written without holding every piece at once.
+        const info = record.partInfo ?? record.parts?.map(p => ({book:p.book, index:p.index, iv:p.iv, size:bytesOf(p.data).byteLength}));
+        const data = record.partData ?? (async index => record.parts[index]);
+        if (!Array.isArray(info) || info.length !== record.chunks.count || info.some((p, i) => p.book !== id || p.index !== i)) throw new Error('A book file is incomplete. Restore it from a backup before backing up.');
+        blob = new Blob([blob, ...frame({id, meta:pack(record.meta), chunks:{count:record.chunks.count, bytes:record.chunks.bytes}, file:{segments:info.map(p => ({iv:b64(p.iv), size:p.size}))}})]);
+        for (const [index, piece] of info.entries()) {
+          const stored = await data(index), bytes = bytesOf(stored?.data ?? new ArrayBuffer(0)), iv = bytesOf(stored?.iv ?? new ArrayBuffer(0));
+          if (bytes.byteLength !== piece.size || b64(iv) !== b64(piece.iv)) throw new Error('A book changed while the backup was being written. Try again.');
+          blob = new Blob([blob, bytes]);
+        }
         continue;
       }
       const data = bytesOf(record.file.data);

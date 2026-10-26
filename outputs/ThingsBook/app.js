@@ -27,7 +27,6 @@ async function allRecords() { return request(db.transaction('books').objectStore
 // Chunked books (ThingsChunks): pieces live in the "chunks" store under [bookId, index].
 const chunkRange = id => IDBKeyRange.bound([id,0],[id,Number.MAX_SAFE_INTEGER]);
 async function getChunk(id,index) { return request(db.transaction('chunks').objectStore('chunks').get([id,index])); }
-async function recordParts(record) { const parts = []; for (let index = 0; index < record.chunks.count; index++) { const part = await getChunk(record.id,index); if (!part) throw new Error('This book file is damaged or incomplete. Restore it from a backup.'); parts.push(part); } return parts; }
 async function removeChunks(id) { await transaction(['chunks'],tx => tx.objectStore('chunks').delete(chunkRange(id))); }
 // Deletes a book record and its pieces together.
 function deleteBooks(tx,ids) { for (const id of ids) { tx.objectStore('books').delete(id); tx.objectStore('chunks').delete(chunkRange(id)); } }
@@ -330,7 +329,7 @@ async function recordSizes() { return new Promise((resolve,reject) => {
 }); }
 // Small libraries of whole-file books keep backup version 1 so older releases can restore them.
 // Larger libraries, and any library with chunked books (which version 1 cannot hold), stream as version 2.
-async function backupBlob(created) { const sizes = await recordSizes(); if (!sizes.some(s => s.chunked) && ThingsBackup.fitsLegacy(sizes,config)) return ThingsBackup.legacy(await allRecords(),config,created); return ThingsBackup.stream(config,sizes.map(s => s.id),async id => { const record = await getRecord(id); if (record?.chunks) record.parts = await recordParts(record); return record; },created); }
+async function backupBlob(created) { const sizes = await recordSizes(); if (!sizes.some(s => s.chunked) && ThingsBackup.fitsLegacy(sizes,config)) return ThingsBackup.legacy(await allRecords(),config,created); return ThingsBackup.stream(config,sizes.map(s => s.id),async id => { const record = await getRecord(id); if (record?.chunks) { /* two passes: piece details first, then one piece's bytes at a time */ record.partInfo = []; for (let index = 0; index < record.chunks.count; index++) { const part = await getChunk(id,index); if (!part) throw new Error('A book file is incomplete. Restore it from a backup before backing up.'); record.partInfo.push({book:part.book,index:part.index,iv:part.iv,size:part.data.byteLength}); } record.partData = index => getChunk(id,index); } return record; },created); }
 async function backup() { if (busy || !key) return; busy = true; try { await closeReader(); await metadataQueue; const created = new Date().toISOString(); await downloadBlob(await backupBlob(created),`ThingsBook-backup-${created.slice(0,10)}.thingsbook`); $('backup-dialog').close(); $('backup-recovery').value = ''; toast(window.ThingsBookAndroid ? 'Choose where to save your encrypted backup. Keep its recovery code separately.' : 'Encrypted backup exported. Keep the recovery code separately for another device.'); } catch { toast('Could not export the backup. Check free space, close other apps and try again.'); } finally { busy = false; resetIdle(); } }
 async function restoreFile(file) { if (!file || busy) return; busy = true; try {
   const restored = await ThingsBackup.read(file); // version 1 or 2, fully validated
