@@ -79,6 +79,16 @@ async function main() {
   assert.equal(Buffer.from(await ThingsVault.unseal(rw.file, key)).toString(), 'old layout');
   assert.equal(rw.chunks, undefined);
 
+  // Writing piece by piece (partInfo + partData, as the app does for large books) gives the identical backup.
+  const fixedDate = '2026-10-26T06:00:00.000Z';
+  const lazy = books.map(r => r.parts ? {...r, parts:undefined, partInfo:r.parts.map(p => ({book:p.book, index:p.index, iv:p.iv, size:p.data.byteLength})), partData:async i => r.parts[i]} : r);
+  const eager = await ThingsBackup.stream(config, books.map(r => r.id), async id => books.find(r => r.id === id), fixedDate);
+  const streamed = await ThingsBackup.stream(config, lazy.map(r => r.id), async id => lazy.find(r => r.id === id), fixedDate);
+  assert(Buffer.from(await eager.arrayBuffer()).equals(Buffer.from(await streamed.arrayBuffer())), 'piece-by-piece backup is byte-identical');
+  // A piece rewritten between the two passes (new IV, same size) stops the backup instead of writing an unreadable piece.
+  const swapped = {...lazy[0], partData:async i => ({...a.parts[i], iv:crypto.getRandomValues(new Uint8Array(12))})};
+  await assert.rejects(ThingsBackup.stream(config, [swapped.id], async () => swapped), /changed while the backup/);
+
   // A backup whose piece list disagrees with its declared size or count is refused.
   const editEntry = async change => {
     const bytes = new Uint8Array(await backup.arrayBuffer()), view = new DataView(bytes.buffer);

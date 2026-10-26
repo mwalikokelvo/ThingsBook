@@ -92,11 +92,18 @@ const ThingsBackup = (() => {
       const record = await load(id);
       if (!record || record.id !== id) throw new Error('A book changed while the backup was being written. Try again.');
       if (record.chunks) {
-        // Chunked book: record.parts are its stored pieces, in order, still sealed.
-        const parts = record.parts;
-        if (!Array.isArray(parts) || parts.length !== record.chunks.count || parts.some((p, i) => p.book !== id || p.index !== i)) throw new Error('A book file is incomplete. Restore it from a backup before backing up.');
-        const pieces = parts.map(p => bytesOf(p.data));
-        blob = new Blob([blob, ...frame({id, meta:pack(record.meta), chunks:{count:record.chunks.count, bytes:record.chunks.bytes}, file:{segments:parts.map((p, i) => ({iv:b64(p.iv), size:pieces[i].byteLength}))}}), ...pieces]);
+        // Chunked book: its stored pieces, in order, still sealed. Either record.parts holds them all, or
+        // record.partInfo lists each piece's {book, index, iv, size} and record.partData(index) loads one
+        // stored piece {iv, data}, so a large book is written without holding every piece at once.
+        const info = record.partInfo ?? record.parts?.map(p => ({book:p.book, index:p.index, iv:p.iv, size:bytesOf(p.data).byteLength}));
+        const data = record.partData ?? (async index => record.parts[index]);
+        if (!Array.isArray(info) || info.length !== record.chunks.count || info.some((p, i) => p.book !== id || p.index !== i)) throw new Error('A book file is incomplete. Restore it from a backup before backing up.');
+        blob = new Blob([blob, ...frame({id, meta:pack(record.meta), chunks:{count:record.chunks.count, bytes:record.chunks.bytes}, file:{segments:info.map(p => ({iv:b64(p.iv), size:p.size}))}})]);
+        for (const [index, piece] of info.entries()) {
+          const stored = await data(index), bytes = bytesOf(stored?.data ?? new ArrayBuffer(0)), iv = bytesOf(stored?.iv ?? new ArrayBuffer(0));
+          if (bytes.byteLength !== piece.size || b64(iv) !== b64(piece.iv)) throw new Error('A book changed while the backup was being written. Try again.');
+          blob = new Blob([blob, bytes]);
+        }
         continue;
       }
       const data = bytesOf(record.file.data);
@@ -105,8 +112,11 @@ const ThingsBackup = (() => {
     return new Blob([blob, ...frame({end:true, books:ids.length})], {type:'application/octet-stream'});
   }
 
-  async function readStream(file) {
+  // lazy: record where each segment's bytes sit ({iv, offset, size}) instead of reading them, so a large
+  // backup can be restored one piece at a time (load(file, segment) reads one later).
+  async function readStream(file, lazy = false) {
     let position = MAGIC.length;
+    const skip = length => { if (position + length > file.size) throw truncated(); const offset = position; position += length; return offset; };
     const bytes = async (length) => {
       if (position + length > file.size) throw truncated();
       const view = new Uint8Array(await file.slice(position, position + length).arrayBuffer());
@@ -142,12 +152,12 @@ const ThingsBackup = (() => {
         const {count, bytes:plain} = entry.chunks || {};
         if (!Number.isInteger(count) || count !== sealed.length || !Number.isInteger(plain) || plain < 0 || sealed.reduce((n, s) => n + s.size, 0) !== plain + 16 * count) throw invalid();
         const parts = [];
-        for (const [index, {iv, size}] of sealed.entries()) parts.push({book:id, index, iv, data:(await bytes(size)).buffer});
+        for (const [index, {iv, size}] of sealed.entries()) parts.push(lazy ? {book:id, index, iv, size, offset:skip(size)} : {book:id, index, iv, data:(await bytes(size)).buffer});
         books.push({id, meta, chunks:{count, bytes:plain}, parts});
         continue;
       }
       if (sealed.length > 1) throw newer(); // unknown multi-part layout
-      books.push({id, meta, file:{iv:sealed[0].iv, data:(await bytes(sealed[0].size)).buffer}});
+      books.push({id, meta, file:lazy ? {iv:sealed[0].iv, size:sealed[0].size, offset:skip(sealed[0].size)} : {iv:sealed[0].iv, data:(await bytes(sealed[0].size)).buffer}});
     }
     const trailer = await next();
     if (trailer.end !== true || trailer.books !== count || position !== file.size) throw invalid();
@@ -162,17 +172,25 @@ const ThingsBackup = (() => {
     return finish(config, value.books.map(r => ({id:validId(r?.id), meta:unpack(r.meta), file:unpack(r.file)})));
   }
 
-  // Reads either version from a File or Blob.
-  async function read(file) {
+  // Reads either version from a File or Blob; {lazy:true} indexes a version 2 backup without loading book bytes.
+  async function read(file, {lazy = false} = {}) {
     if (!file || !(file.size > 0)) throw invalid();
     const head = new Uint8Array(await file.slice(0, MAGIC.length).arrayBuffer());
-    if (head.length === MAGIC.length && head.every((b, i) => b === MAGIC.charCodeAt(i))) return readStream(file);
+    if (head.length === MAGIC.length && head.every((b, i) => b === MAGIC.charCodeAt(i))) return readStream(file, lazy);
     let first = 0; while (first < head.length && (head[first] === 0x20 || head[first] === 0x0a || head[first] === 0x0d || head[first] === 0x09)) first++;
     if (head[first] !== 0x7b) throw invalid(); // version 1 is a JSON object
     let value; try { value = JSON.parse(await file.text()); } catch { throw invalid(); }
     return readLegacy(value);
   }
 
-  return Object.freeze({fitsLegacy, legacy, stream, read, MAGIC});
+  // The bytes of one segment indexed by read(file, {lazy:true}).
+  async function load(file, segment) {
+    if (segment.data) return segment.data;
+    const data = await file.slice(segment.offset, segment.offset + segment.size).arrayBuffer();
+    if (data.byteLength !== segment.size) throw truncated();
+    return data;
+  }
+
+  return Object.freeze({fitsLegacy, legacy, stream, read, load, MAGIC});
 })();
 if (typeof module !== 'undefined') module.exports = ThingsBackup;

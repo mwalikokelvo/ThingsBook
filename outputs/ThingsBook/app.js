@@ -1,6 +1,6 @@
 'use strict';
 const $ = id => document.getElementById(id);
-const DB_NAME = 'thingsbook-encrypted-v1', DB_VERSION = 2;
+const DB_NAME = 'thingsbook-encrypted-v1', DB_VERSION = 3;
 const MAX_FILE = 100 * 1024 * 1024;
 const encoder = new TextEncoder(), decoder = new TextDecoder();
 let db, config, key, books = [], shelves = [], filter = 'all', view = 'shelf',libraryPage=0,libraryQuery='';
@@ -27,7 +27,6 @@ async function allRecords() { return request(db.transaction('books').objectStore
 // Chunked books (ThingsChunks): pieces live in the "chunks" store under [bookId, index].
 const chunkRange = id => IDBKeyRange.bound([id,0],[id,Number.MAX_SAFE_INTEGER]);
 async function getChunk(id,index) { return request(db.transaction('chunks').objectStore('chunks').get([id,index])); }
-async function recordParts(record) { const parts = []; for (let index = 0; index < record.chunks.count; index++) { const part = await getChunk(record.id,index); if (!part) throw new Error('This book file is damaged or incomplete. Restore it from a backup.'); parts.push(part); } return parts; }
 async function removeChunks(id) { await transaction(['chunks'],tx => tx.objectStore('chunks').delete(chunkRange(id))); }
 // Deletes a book record and its pieces together.
 function deleteBooks(tx,ids) { for (const id of ids) { tx.objectStore('books').delete(id); tx.objectStore('chunks').delete(chunkRange(id)); } }
@@ -129,17 +128,18 @@ async function unlock(event) {
         const records = pendingBackup?.books || await allMetadata();
         decodedBooks = await Promise.all(records.map(async r => { const meta = await readJSON(r.meta,candidateKey); if (meta.id !== r.id) throw new Error(); return meta; }));
         if (!Array.isArray(decodedShelves) || !decodedShelves.length || decodedShelves.some(s => typeof s.id !== 'string' || typeof s.name !== 'string')) throw new Error();
-        if (pendingBackup) for (const record of records) { if (record.chunks) await ThingsChunks.verify(record,record.parts,candidateKey); else await unseal(record.file,candidateKey); }
       } catch { if (remembered) { hasDeviceAccess = false; gateState(); } throw new Error('The password or recovery code is incorrect, or the library/backup is damaged.'); }
       updated = {...source};
       if (password) updated.recovery = await seal(encoder.encode(password),candidateKey);
       if(pendingBackup&&!await confirmStorage(ThingsStorage.payload(pendingBackup.books,pendingBackup.config),'restore'))throw new Error('Restore cancelled before saving. Your existing library is unchanged. You can retry or cancel the restore.');
+      // Every book of a backup is verified and staged piece by piece before anything is replaced.
+      if (pendingBackup) await stageRestore(pendingBackup,candidateKey);
       const saveAccess = !remembered;
       if (saveAccess) remembered = await ThingsDeviceAccess.remember(password,candidateKey,Array.from(source.check.iv).join(','));
       // Reopening an already remembered library is read-only: low disk space
       // must not prevent access merely because another key write would fail.
-      if (saveAccess || pendingBackup) await transaction(pendingBackup ? ['settings','books','chunks'] : ['settings'], tx => {
-        if (pendingBackup) { tx.objectStore('books').clear(); tx.objectStore('chunks').clear(); for (const {parts,...record} of pendingBackup.books) { tx.objectStore('books').put(record); for (const part of parts || []) tx.objectStore('chunks').put(part); } }
+      if (saveAccess || pendingBackup) await transaction(pendingBackup ? ['settings','books','chunks','staging'] : ['settings'], tx => {
+        if (pendingBackup) swapStaged(tx,pendingBackup);
         tx.objectStore('settings').put(updated,'vault'); tx.objectStore('settings').put(remembered,'device-access');
       });
       pendingBackup = null; config = updated; key = candidateKey; shelves = decodedShelves; books = decodedBooks;
@@ -217,8 +217,14 @@ async function upload(event) {
       if(run.paused){remaining.push(...files.slice(index));break;}
       const file=files[index];let data,stage='read';count=index+1;$('save-book').textContent=`Encrypting book ${count} of ${files.length}…`;$('import-status').textContent=`${saved} saved · Reading ${file.name} (${count} of ${files.length})`;
       try{
-        data=await file.arrayBuffer();const format=window.ThingsImport?.format?window.ThingsImport.format(file.name,data):file.name.split('.').pop().toUpperCase();
-        if(format==='PDF'&&!decoder.decode(new Uint8Array(data).subarray(0,1024)).includes('%PDF-'))throw new Error('This file does not appear to be a valid PDF.');
+        // PDFs are recognized from their first kilobyte and streamed: details are read by byte range and
+        // pieces are encrypted straight from the file, so a large PDF is never held in memory whole.
+        const streamed=decoder.decode(new Uint8Array(await file.slice(0,1024).arrayBuffer())).includes('%PDF-');
+        data=streamed?null:await file.arrayBuffer();let format=streamed?'PDF':window.ThingsImport?.format?window.ThingsImport.format(file.name,data):file.name.split('.').pop().toUpperCase();
+        // Kindle books and Word documents are converted to EPUB once, here; the stored book is that EPUB.
+        let storedName=file.name,sourceFormat=null;
+        if(format==='MOBI'||format==='DOCX'||format==='FB2'){$('save-book').textContent=`Converting ${{MOBI:'Kindle book',DOCX:'Word document',FB2:'FictionBook'}[format]} ${count} of ${files.length}…`;const converted=format==='MOBI'?await ThingsKindle.toEPUB(data):format==='DOCX'?await ThingsDocx.toEPUB(data,{name:file.name}):await ThingsFB2.toEPUB(data);new Uint8Array(data).fill(0);data=converted.epub.buffer.slice(converted.epub.byteOffset,converted.epub.byteOffset+converted.epub.byteLength);format='EPUB';sourceFormat=converted.kind;storedName=file.name.replace(/\.fb2\.zip$/i,'').replace(/\.[^.]*$/,'')+'.epub';}
+        if(format==='PDF'&&!streamed)throw new Error('This file does not appear to be a valid PDF.');
         if(format==='EPUB'&&new Uint8Array(data)[0]!==80)throw new Error('This file does not appear to be an EPUB archive.');
         stage='save';
         let embedded = {};
@@ -226,14 +232,14 @@ async function upload(event) {
           try {embedded = await window.ThingsImport.epub(data, makeCover); if (embedded.warnings.length) fallbackCount++;}
           catch {fallbackCount++;}
         }
-        if(format==='PDF'&&window.ThingsImport){$('save-book').textContent=`Reading PDF details ${count} of ${files.length}…`;embedded=await window.ThingsImport.pdf(data);if(embedded.warnings.length)fallbackCount++;}
-        const meta = {id:crypto.randomUUID(),title:files.length === 1 && details.title ? details.title : embedded.title || window.SanctuaryCore?.title(file.name)||file.name.replace(/\.[^.]+$/,'').replace(/[_-]/g,' '),author:details.author || embedded.author || 'Unknown author',rating:details.rating,color:files.length > 1 ? palette[(books.length + count) % palette.length] : details.color,shelfId:details.shelfId,format,size:file.size,filename:file.name,added:Date.now(),status:'unread',notes:'',series:embedded.series||'',seriesNumber:embedded.seriesNumber||'',year:embedded.year||null,language:embedded.language||'',cover:embedded.cover||null,pages:embedded.pages||null};
+        if(format==='PDF'&&window.ThingsImport){$('save-book').textContent=`Reading PDF details ${count} of ${files.length}…`;embedded=await window.ThingsImport.pdf(null,{source:{size:file.size,read:async(begin,end)=>new Uint8Array(await file.slice(begin,end).arrayBuffer())}});if(embedded.warnings.length)fallbackCount++;}
+        const meta = {id:crypto.randomUUID(),title:files.length === 1 && details.title ? details.title : embedded.title || window.SanctuaryCore?.title(file.name)||file.name.replace(/\.[^.]+$/,'').replace(/[_-]/g,' '),author:details.author || embedded.author || 'Unknown author',rating:details.rating,color:files.length > 1 ? palette[(books.length + count) % palette.length] : details.color,shelfId:details.shelfId,format,size:data ? data.byteLength : file.size,filename:storedName,...(sourceFormat?{sourceFormat,sourceFilename:file.name}:{}),added:Date.now(),status:'unread',notes:'',series:embedded.series||'',seriesNumber:embedded.seriesNumber||'',year:embedded.year||null,language:embedded.language||'',cover:embedded.cover||null,pages:embedded.pages||null};
         if(!shelves.some(s=>s.id===meta.shelfId)){if(!shelves.length)await saveShelves([{id:crypto.randomUUID(),name:'Imported Books'}]);meta.shelfId=shelves[0].id;}
         // Pieces first, one transaction each; the book record is written last, so a book only
         // appears once every piece is stored. A failure removes the pieces already written.
         importingBooks.add(meta.id);
         try {
-          const chunks = await ThingsChunks.write(data,key,meta.id,part => transaction(['chunks'],tx => tx.objectStore('chunks').put(part)));
+          const chunks = await ThingsChunks.write(data ?? file,key,meta.id,part => transaction(['chunks'],tx => tx.objectStore('chunks').put(part)));
           const record = {id:meta.id,meta:await sealJSON(meta),chunks};
           await transaction(['books'],tx => tx.objectStore('books').add(record));
         } catch (error) { await removeChunks(meta.id).catch(() => {}); throw error; }
@@ -258,7 +264,7 @@ function showDetail(id) {
   const cover = el('div','detail-cover'); cover.style.setProperty('--book-color',book.color); cover.append(el('span','',book.title),el('span','book-ornament','✦'),el('span','book-format',book.format));
   if (/^data:image\/jpeg;base64,[A-Za-z0-9+/=]+$/.test(book.cover||'')) {const image=el('img','detail-cover-image');image.src=book.cover;image.alt='';cover.append(image);}
   content.append(cover,el('h2','detail-title',book.title),el('p','detail-meta',`${book.author}\n${book.format}${book.pages?' · '+book.pages+' pages':''} · ${size(book.size)} · ${book.rating ? '★'.repeat(book.rating) : 'Not rated'}`));
-  const actions = el('div','detail-actions'), read = el('button','primary','Open book →'), download = el('button','secondary','Download original ↓'); read.onclick = () => readBook(id); download.onclick = () => downloadBook(id); actions.append(read,download); content.append(actions);
+  const actions = el('div','detail-actions'), read = el('button','primary','Open book →'), download = el('button','secondary',book.sourceFormat ? 'Download EPUB ↓' : 'Download original ↓'); if (book.sourceFormat) download.title = `Converted from ${book.sourceFilename || book.sourceFormat} when imported; the original file was not kept.`; read.onclick = () => readBook(id); download.onclick = () => downloadBook(id); actions.append(read,download); content.append(actions);
   content.append(el('p','fine','Read and listen inside your library. Downloaded originals are unencrypted files.'));
   const form = el('form','detail-form');
   function field(labelText, input) { const label = el('label','',labelText); label.append(input); form.append(label); return input; }
@@ -299,9 +305,76 @@ async function nativeTransfer(blob, filename, mode) {
   catch(e) { bridge.cancelTransfer(); throw e; }
 }
 async function downloadBlob(blob, filename) { if (window.ThingsBookAndroid) return nativeTransfer(blob,filename,'export'); const url = URL.createObjectURL(blob), a = el('a'); a.href = url; a.download = filename; document.body.append(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(url),60000); }
-async function bookBlob(id) { const record = await getRecord(id), book = books.find(b => b.id === id); if (!record || !book) throw new Error('Missing book file'); const mime = book.format === 'PDF' ? 'application/pdf' : book.format === 'EPUB' ? 'application/epub+zip' : 'text/plain'; if (record.chunks) return new Blob(await ThingsChunks.read(record,key,index => getChunk(id,index)),{type:mime}); return new Blob([await unseal(record.file)],{type:mime}); }
-async function downloadBook(id) { if (busy) return; busy = true; try { const book = books.find(b => b.id === id); await downloadBlob(await bookBlob(id),book.filename); toast(window.ThingsBookAndroid ? 'Choose where to save your original. This copy is unencrypted.' : 'Original downloaded. Keep this unencrypted copy somewhere private.'); } catch { toast('Could not decrypt or save this book. Check free space and try again.'); } finally { busy = false; resetIdle(); } }
-async function readBook(id) { if (busy) return; busy = true; try { const book = books.find(b => b.id === id), blob = await bookBlob(id); if (book.status === 'unread') await updateBook(id,{status:'reading'}); await closeReader(); $('detail-dialog').close(); if (!$('reader-dialog').open) $('reader-dialog').showModal(); await ThingsReader.open(book,blob,changes => updateBook(id,changes)); } catch(e) { const message=e.message || 'Could not open this book. Check its format or download the original.'; $('reader-message').textContent=message;const notice=el('p','reading-error',message);$('reader-content').replaceChildren(notice);$('reader-save-status').textContent='Book could not be opened';toast(message); } finally { busy = false; resetIdle(); } }
+// Restore, bounded in memory: each piece (or whole-file book) of a backup is read from the file, verified
+// with the backup's key and written to the "staging" store, one at a time; swapStaged() then replaces the
+// library in one transaction. Until that transaction commits, the existing library is untouched.
+async function clearStaging() { await transaction(['staging'],tx => tx.objectStore('staging').clear()); }
+async function stageRestore(pending,vaultKey) {
+  await clearStaging();
+  try {
+    for (const record of pending.books) {
+      if (record.chunks) {
+        if (!ThingsChunks.valid(record.chunks) || record.parts?.length !== record.chunks.count) throw new Error('damaged');
+        for (const [index,part] of record.parts.entries()) {
+          const piece = {book:record.id,index,iv:part.iv,data:await ThingsBackup.load(pending.file,part)};
+          await ThingsChunks.piece(record,vaultKey,() => piece,index);
+          await transaction(['staging'],tx => tx.objectStore('staging').put(piece));
+        }
+      } else {
+        const file = {iv:record.file.iv,data:await ThingsBackup.load(pending.file,record.file)};
+        await unseal(file,vaultKey);
+        await transaction(['staging'],tx => tx.objectStore('staging').put({book:record.id,index:-1,...file}));
+      }
+    }
+  } catch (error) {
+    await clearStaging().catch(() => {});
+    if (/quota|space/i.test(`${error?.name} ${error?.message}`)) throw new Error(storageError(error));
+    throw new Error('A book in this backup could not be verified, so the backup may be damaged or incomplete. Your existing library is unchanged.');
+  }
+}
+function swapStaged(tx,pending) {
+  const books = tx.objectStore('books'), chunks = tx.objectStore('chunks'), staging = tx.objectStore('staging'), byId = new Map(pending.books.map(record => [record.id,record]));
+  books.clear(); chunks.clear();
+  for (const record of pending.books) if (record.chunks) books.put({id:record.id,meta:record.meta,chunks:record.chunks});
+  const cursor = staging.openCursor();
+  cursor.onsuccess = () => { const current = cursor.result; if (!current) { staging.clear(); return; } const value = current.value; if (value.index < 0) books.put({id:value.book,meta:byId.get(value.book).meta,file:{iv:value.iv,data:value.data}}); else chunks.put(value); current.continue(); };
+}
+async function bookBlob(id) { const record = await getRecord(id), book = books.find(b => b.id === id); if (!record || !book) throw new Error('Missing book file'); const mime = book.format === 'PDF' ? 'application/pdf' : book.format === 'EPUB' ? 'application/epub+zip' : 'text/plain'; if (record.chunks) { let blob = new Blob([],{type:mime}); for (let index = 0; index < record.chunks.count; index++) blob = new Blob([blob,await ThingsChunks.piece(record,key,i => getChunk(id,i),index)],{type:mime}); return blob; } /* one decrypted piece held at a time */ return new Blob([await unseal(record.file)],{type:mime}); }
+// A chunked book read by byte range: only the pieces asked for are decrypted, and the last few are
+// cached. Used to open large PDFs without loading the whole file. close() drops the cache.
+async function bookSource(id) {
+  const record = await getRecord(id), book = books.find(b => b.id === id), vaultKey = key;
+  if (!record?.chunks || !book || !vaultKey) return null;
+  const SIZE = ThingsChunks.SIZE, size = record.chunks.bytes, cache = new Map(), stats = {decrypted:0,delivered:0};
+  // pdf.js can request dozens of ranges at once; decrypting one piece at a time keeps memory to a few pieces.
+  let turn = Promise.resolve();
+  const decrypt = index => { const run = turn.then(() => key === vaultKey ? ThingsChunks.piece(record,vaultKey,i => getChunk(id,i),index) : Promise.reject(new Error('The library is locked.'))); turn = run.catch(() => {}); return run; };
+  const piece = index => {
+    let pending = cache.get(index);
+    if (pending) cache.delete(index);
+    else if (key !== vaultKey) pending = Promise.reject(new Error('The library is locked.')); /* no decryption after locking */
+    else { pending = decrypt(index); stats.decrypted++; pending.catch(() => cache.delete(index)); }
+    cache.set(index,pending);
+    while (cache.size > 4) cache.delete(cache.keys().next().value);
+    return pending;
+  };
+  return {size,type:'application/pdf',stats,
+    async read(begin,end) {
+      begin = Math.max(0,begin); end = Math.min(size,end);
+      const out = new Uint8Array(Math.max(0,end - begin));
+      for (let index = Math.floor(begin / SIZE); index * SIZE < end; index++) {
+        const bytes = new Uint8Array(await piece(index)), start = index * SIZE;
+        const from = Math.max(begin,start) - start, to = Math.min(end,start + bytes.length) - start;
+        out.set(bytes.subarray(from,to),start + from - begin);
+      }
+      stats.delivered += out.length;
+      return out;
+    },
+    async arrayBuffer() { return (await bookBlob(id)).arrayBuffer(); },
+    close() { cache.clear(); }};
+}
+async function downloadBook(id) { if (busy) return; busy = true; try { const book = books.find(b => b.id === id); await downloadBlob(await bookBlob(id),book.filename); toast(book.sourceFormat ? (window.ThingsBookAndroid ? 'Choose where to save the converted EPUB. This copy is unencrypted.' : 'Converted EPUB downloaded. Keep this unencrypted copy somewhere private.') : window.ThingsBookAndroid ? 'Choose where to save your original. This copy is unencrypted.' : 'Original downloaded. Keep this unencrypted copy somewhere private.'); } catch { toast('Could not decrypt or save this book. Check free space and try again.'); } finally { busy = false; resetIdle(); } }
+async function readBook(id) { if (busy) return; busy = true; try { const book = books.find(b => b.id === id), blob = (book?.format === 'PDF' && await bookSource(id)) || await bookBlob(id); if (book.status === 'unread') await updateBook(id,{status:'reading'}); await closeReader(); $('detail-dialog').close(); if (!$('reader-dialog').open) $('reader-dialog').showModal(); await ThingsReader.open(book,blob,changes => updateBook(id,changes)); } catch(e) { const message=e.message || 'Could not open this book. Check its format or download the original.'; $('reader-message').textContent=message;const notice=el('p','reading-error',message);$('reader-content').replaceChildren(notice);$('reader-save-status').textContent='Book could not be opened';toast(message); } finally { busy = false; resetIdle(); } }
 async function prepareBackup() {
   if (busy || !key) return;
   busy = true;
@@ -336,17 +409,18 @@ async function recordSizes() { return new Promise((resolve,reject) => {
 }); }
 // Small libraries of whole-file books keep backup version 1 so older releases can restore them.
 // Larger libraries, and any library with chunked books (which version 1 cannot hold), stream as version 2.
-async function backupBlob(created) { const sizes = await recordSizes(); if (!sizes.some(s => s.chunked) && ThingsBackup.fitsLegacy(sizes,config)) return ThingsBackup.legacy(await allRecords(),config,created); return ThingsBackup.stream(config,sizes.map(s => s.id),async id => { const record = await getRecord(id); if (record?.chunks) record.parts = await recordParts(record); return record; },created); }
+async function backupBlob(created) { const sizes = await recordSizes(); if (!sizes.some(s => s.chunked) && ThingsBackup.fitsLegacy(sizes,config)) return ThingsBackup.legacy(await allRecords(),config,created); return ThingsBackup.stream(config,sizes.map(s => s.id),async id => { const record = await getRecord(id); if (record?.chunks) { /* two passes: piece details first, then one piece's bytes at a time */ record.partInfo = []; for (let index = 0; index < record.chunks.count; index++) { const part = await getChunk(id,index); if (!part) throw new Error('A book file is incomplete. Restore it from a backup before backing up.'); record.partInfo.push({book:part.book,index:part.index,iv:part.iv,size:part.data.byteLength}); } record.partData = index => getChunk(id,index); } return record; },created); }
 async function backup() { if (busy || !key) return; busy = true; try { await closeReader(); await metadataQueue; const created = new Date().toISOString(); await downloadBlob(await backupBlob(created),`ThingsBook-backup-${created.slice(0,10)}.thingsbook`); $('backup-dialog').close(); $('backup-recovery').value = ''; toast(window.ThingsBookAndroid ? 'Choose where to save your encrypted backup. Keep its recovery code separately.' : 'Encrypted backup exported. Keep the recovery code separately for another device.'); } catch { toast('Could not export the backup. Check free space, close other apps and try again.'); } finally { busy = false; resetIdle(); } }
 async function restoreFile(file) { if (!file || busy) return; busy = true; try {
-  const restored = await ThingsBackup.read(file); // version 1 or 2, fully validated
+  const restored = await ThingsBackup.read(file,{lazy:true}); // version 1 or 2, fully validated; version 2 books are indexed, not loaded
+  restored.file = file;
   if (config && !confirm(`Restore ${restored.books.length} books? This replaces the library on this device only after every book is verified. Export a current backup first to keep both collections. Continue?`)) return;
   pendingBackup = restored; busy = false; await lock(); gateState(); toast('Enter the recovery code or original backup password. Your existing library stays intact until verification succeeds.');
 } catch (e) { toast(e?.code === 'newer' || e?.code === 'truncated' ? e.message : 'This is not a valid ThingsBook encrypted backup.'); } finally { busy = false; $('backup-file').value = ''; } }
 async function init() {
   try { if (!crypto.subtle || !window.indexedDB) throw new Error('Use Start ThingsBook.cmd to open this app at its localhost address.');
-    // Version 2 only adds the "chunks" store; existing settings and books are untouched.
-    const opening = indexedDB.open(DB_NAME,DB_VERSION); opening.onupgradeneeded = () => { if(!opening.result.objectStoreNames.contains('settings'))opening.result.createObjectStore('settings');if(!opening.result.objectStoreNames.contains('books'))opening.result.createObjectStore('books',{keyPath:'id'});if(!opening.result.objectStoreNames.contains('chunks'))opening.result.createObjectStore('chunks',{keyPath:['book','index']}); }; db = await request(opening); db.onversionchange = () => { db.close(); location.reload(); }; config = await request(db.transaction('settings').objectStore('settings').get('vault')); hasDeviceAccess = !!(config && await request(db.transaction('settings').objectStore('settings').get('device-access'))); gateState();
+    // Version 2 adds the "chunks" store and version 3 the "staging" store; existing settings and books are untouched.
+    const opening = indexedDB.open(DB_NAME,DB_VERSION); opening.onupgradeneeded = () => { if(!opening.result.objectStoreNames.contains('settings'))opening.result.createObjectStore('settings');if(!opening.result.objectStoreNames.contains('books'))opening.result.createObjectStore('books',{keyPath:'id'});if(!opening.result.objectStoreNames.contains('chunks'))opening.result.createObjectStore('chunks',{keyPath:['book','index']});if(!opening.result.objectStoreNames.contains('staging'))opening.result.createObjectStore('staging',{keyPath:['book','index']}); }; db = await request(opening); db.onversionchange = () => { db.close(); location.reload(); }; config = await request(db.transaction('settings').objectStore('settings').get('vault')); hasDeviceAccess = !!(config && await request(db.transaction('settings').objectStore('settings').get('device-access'))); gateState();
   } catch(e) { $('gate-error').textContent = e.message || 'Browser storage is unavailable. Use a normal browser window.'; $('unlock-button').disabled = true; return; }
   $('unlock-form').addEventListener('submit',unlock); $('lock').onclick = lock;
   $('cancel-restore').onclick = () => { if (!busy) { pendingBackup = null; gateState(); } };

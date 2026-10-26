@@ -5,21 +5,27 @@ const {webcrypto} = require('node:crypto');
 const path = require('node:path');
 const nodes = new Map();
 function node(id) { if (!nodes.has(id)) nodes.set(id,{value:'',textContent:'',hidden:false,disabled:false,required:false,files:[],classList:{add(){},remove(){},toggle(){}},replaceChildren(){},focus(){},reset(){},close(){},showModal(){}}); return nodes.get(id); }
-const memory = {settings:new Map(), books:new Map(), chunks:new Map()};
-// Minimal IndexedDB stand-in. "chunks" uses the compound key [book, index]; a key range covers one book.
-const storeKey = (name, key) => name === 'chunks' ? JSON.stringify(key) : key;
-const inRange = (name, key, range) => name === 'chunks' && JSON.parse(key)[0] === range.lower[0];
-const fakeRequest = produce => { const req = {}; queueMicrotask(() => { req.result = produce(); req.onsuccess?.(); }); return req; };
-const fakeDb = {transaction(stores,mode) { const tx = {objectStore(name) { const map = memory[name]; return {
-  get(key){ return fakeRequest(() => map.get(storeKey(name,key))); },
-  openCursor(){ const req = {}, values = [...map.values()]; let index = 0; const next = () => queueMicrotask(() => {req.result = index < values.length ? {value:values[index++],continue:next} : null; req.onsuccess();}); next(); return req; },
-  getAll(){ return fakeRequest(() => [...map.values()]); },
-  getAllKeys(){ return fakeRequest(() => [...map.keys()].map(k => name === 'chunks' ? JSON.parse(k) : k)); },
-  put(value,id){ map.set(name === 'chunks' ? storeKey(name,[value.book,value.index]) : id || value.id, structuredClone(value)); },
+const memory = {settings:new Map(), books:new Map(), chunks:new Map(), staging:new Map()};
+// Minimal IndexedDB stand-in. "chunks" and "staging" use the compound key [book, index]; a key range covers
+// one book. Like IndexedDB, a readwrite transaction completes only after its pending requests have finished.
+const compound = name => name === 'chunks' || name === 'staging';
+const storeKey = (name, key) => compound(name) ? JSON.stringify(key) : key;
+const inRange = (name, key, range) => compound(name) && JSON.parse(key)[0] === range.lower[0];
+const fakeDb = {transaction(stores,mode) { let pending = 0;
+  const request = produce => { const req = {}; pending++; queueMicrotask(() => { req.result = produce(); req.onsuccess?.(); pending--; }); return req; };
+  const tx = {objectStore(name) { const map = memory[name]; return {
+  get(key){ return request(() => map.get(storeKey(name,key))); },
+  openCursor(){ const req = {}, values = [...map.values()]; let index = 0; pending++; const next = () => queueMicrotask(() => { if (index < values.length) { req.result = {value:values[index++],continue:next}; req.onsuccess(); } else { req.result = null; req.onsuccess(); pending--; } }); next(); return req; },
+  getAll(){ return request(() => [...map.values()]); },
+  getAllKeys(){ return request(() => [...map.keys()].map(k => compound(name) ? JSON.parse(k) : k)); },
+  count(){ return request(() => map.size); },
+  put(value,id){ map.set(compound(name) ? storeKey(name,[value.book,value.index]) : id || value.id, structuredClone(value)); },
   add(value){ assert(!map.has(value.id)); map.set(value.id, structuredClone(value)); },
   clear(){ map.clear(); },
   delete(key){ if (key && key.lower !== undefined) { for (const k of [...map.keys()]) if (inRange(name,k,key)) map.delete(k); } else map.delete(storeKey(name,key)); }
-};},abort(){}}; if (mode === 'readwrite') queueMicrotask(() => tx.oncomplete()); return tx; }};
+};},abort(){}};
+  if (mode === 'readwrite') { const finish = () => pending ? setImmediate(finish) : tx.oncomplete(); setImmediate(finish); }
+  return tx; }};
 const context = vm.createContext({IDBKeyRange:{bound:(lower,upper) => ({lower,upper})},console,TextEncoder,TextDecoder,crypto:webcrypto,Uint8Array,ArrayBuffer,Blob,URL,atob,btoa,structuredClone,queueMicrotask,setTimeout:()=>1,clearTimeout(){},confirm:()=>true,navigator:{},document:{getElementById:node,querySelectorAll:()=>[]},window:{},location:{}});
 const source = fs.readFileSync(process.argv[2] || path.resolve('outputs/ThingsBook/app.js'),'utf8').replace(/init\(\);\s*$/,'');
 const vaultPath = path.join(path.dirname(process.argv[2] || path.resolve('outputs/ThingsBook/app.js')), 'vendor/vault.js');
@@ -88,6 +94,19 @@ async function main() {
   node('password').value = 'Wrong-backup-password'; await run('unlock({preventDefault(){}})'); assert.equal(memory.books.size,1); assert.equal(run('key'),null);
   node('password').value = 'Test-only library password'; await run('unlock({preventDefault(){}})'); assert.equal(run('pendingBackup'),null); assert.equal(run('books[0].notes'),'Page 42');assert.equal(run('books[0].progress.scratchpad[3].text'),'Secret chapter reflection');assert.equal(run('books[0].series'),'Private series');assert.equal(run('books[0].progress.readingSeconds'),120);assert.equal(run('books[0].tags[0]'),'history');assert.equal(run('books[0].flashcards[0].front'),'Private recall question');
   assert.equal(await (await run(`bookBlob('${id}')`)).text(),'A private chapter. <script>not executed</script>');
+  assert.equal(memory.staging.size,0,'staging is emptied after a restore');
+  if (streamBackup || !legacyLibrary) {
+    // A damaged version 2 backup passes the password check but is refused while staging; nothing changes.
+    const damaged = new Uint8Array(await context.window.download.blob.arrayBuffer()); damaged[damaged.length - 60] ^= 1;
+    context.damagedBackup = new Blob([damaged]);
+    const keysBefore = JSON.stringify([...memory.books.keys()]), piecesBefore = JSON.stringify([...memory.chunks.keys()]);
+    await run('restoreFile(damagedBackup)'); assert.equal(run('!!pendingBackup'),true);
+    node('password').value = 'Test-only library password'; await run('unlock({preventDefault(){}})');
+    assert.equal(run('key'),null); assert.match(node('gate-error').textContent,/could not be verified/);
+    assert.equal(memory.staging.size,0); assert.equal(JSON.stringify([...memory.books.keys()]),keysBefore); assert.equal(JSON.stringify([...memory.chunks.keys()]),piecesBefore);
+    run('pendingBackup = null'); node('password').value = 'Test-only library password'; await run('unlock({preventDefault(){}})'); assert.equal(run('!!key'),true);
+    assert.equal(await (await run(`bookBlob('${id}')`)).text(),'A private chapter. <script>not executed</script>');
+  }
   // Invalid uploads must not create a file; unsupported extensions and oversize.
   const invalid = new Blob(['not a pdf']); invalid.name = 'broken.pdf'; node('book-files').files = [invalid]; await run('upload({preventDefault(){}})'); assert.equal(memory.books.size,1); assert.match(node('upload-error').textContent,/valid PDF/);
   node('book-files').files = [{name:'huge.txt',size:101*1024*1024}]; await run('upload({preventDefault(){}})'); assert.equal(memory.books.size,1); assert.match(node('upload-error').textContent,/100 MB/);

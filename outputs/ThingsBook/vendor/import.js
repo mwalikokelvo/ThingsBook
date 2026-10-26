@@ -19,18 +19,31 @@ window.ThingsImport = (() => {
   }
   function format(name,data){
     const bytes=new Uint8Array(data),extension=String(name).split('.').pop().toLowerCase();
-    if(new TextDecoder().decode(bytes.subarray(0,1024)).includes('%PDF-'))return 'PDF';
+    if(new TextDecoder().decode(bytes.subarray(0,1024)).includes('%PDF-'))return 'PDF'
+    // Kindle (MOBI 6, KF8/AZW3, combined): PalmDB type/creator 'BOOKMOBI'; converted to EPUB on import.
+    if(bytes.length>68&&String.fromCharCode(...bytes.subarray(60,68))==='BOOKMOBI')return 'MOBI';
+    // FictionBook (FB2): an XML book whose root element is <FictionBook>; converted to EPUB on import.
+    {const start=bytes[0]===0xef&&bytes[1]===0xbb&&bytes[2]===0xbf?3:0;if(/^\s*(?:<\?xml[^?]*\?>\s*)?(?:<!--[\s\S]*?-->\s*)*<FictionBook[\s>]/.test(String.fromCharCode(...bytes.subarray(start,start+4096))))return 'FB2';}
     if(bytes[0]===80&&bytes[1]===75&&bytes[2]===3&&bytes[3]===4){
       let container;
       try{container=member(data,'META-INF/container.xml',1024*1024);const doc=xml(container);if([...doc.getElementsByTagName('*')].some(n=>n.localName==='rootfile'&&n.getAttribute('full-path')))return 'EPUB';}
-      catch{throw new Error('This file does not appear to be an EPUB archive.');}
+      catch{}
       finally{container?.fill(0);}
+      // Word (.docx): converted to EPUB on import.
+      let types;
+      try{types=member(data,'[Content_Types].xml',1024*1024);if(new TextDecoder().decode(types).includes('wordprocessingml.document.main+xml'))return 'DOCX';}
+      catch{}
+      finally{types?.fill(0);}
+      // Zipped FictionBook (.fb2.zip, .fbz): exactly one .fb2 inside. Names are listed without extracting.
+      try{const names=[];ThingsArchiveLib.unzipSync(bytes,{filter:file=>{names.push(file.name);return false;}});if(names.filter(n=>/\.fb2$/i.test(n)).length===1)return 'FB2';}catch{}
       throw new Error('This file does not appear to be an EPUB archive.');
     }
+    // Compound File (legacy .doc, or an encrypted .docx): not readable without Word.
+    if(bytes.length>8&&[0xd0,0xcf,0x11,0xe0,0xa1,0xb1,0x1a,0xe1].every((b,i)=>bytes[i]===b))throw new Error('Older Word (.doc) files and password-protected Word documents are not supported. Save it as a .docx without a password, then import it.');
     if(extension==='pdf')throw new Error('This file does not appear to be a valid PDF.');
     if(extension==='epub')throw new Error('This file does not appear to be an EPUB archive.');
     if(extension==='txt')return 'TXT';
-    throw new Error('Choose PDF, EPUB or TXT books; the file contents were not recognized.');
+    throw new Error('Choose PDF, EPUB or TXT books, or DRM-free Kindle (MOBI/AZW3) Word (.docx) and FictionBook (.fb2) books; the file contents were not recognized.');
   }
   function xml(bytes) {
     const text = ReaderCore.decodeText(bytes);
@@ -75,13 +88,14 @@ window.ThingsImport = (() => {
       return result;
     } finally {for (const bytes of buffers) bytes.fill(0);}
   }
-  async function pdf(data,{timeoutMs=10000}={}) {
+  // source: {size, read(begin,end)} reads a PDF by byte range instead of from data held in memory.
+  async function pdf(data,{timeoutMs=10000,source=null}={}) {
     const result={title:'',author:'',year:null,language:'',pages:null,cover:null,warnings:[]};
     const controller=new AbortController();let doc,render,canvas,timer;
     const destroy=()=>{try{if(doc)Promise.resolve(doc.destroy()).catch(()=>{});}catch{}};
     const expired=new Promise((_,reject)=>{timer=setTimeout(()=>{controller.abort();try{render?.cancel();}catch{}destroy();reject(Object.assign(new Error('PDF details took too long'),{name:'TimeoutError'}));},Math.max(1,Math.min(10000,timeoutMs)));});
     const job=(async()=>{
-      doc=await ThingsReader.inspectPdf(data,controller.signal);if(controller.signal.aborted){await doc.destroy();return;}
+      doc=await ThingsReader.inspectPdf(data,controller.signal,source);if(controller.signal.aborted){await doc.destroy();return;}
       result.pages=Number.isSafeInteger(doc.numPages)&&doc.numPages>0?doc.numPages:null;
       try{const metadata=await doc.getMetadata();if(controller.signal.aborted)return;const info=metadata.info||{},xmp=metadata.metadata;const value=(name)=>{try{return xmp?.get(name);}catch{return '';}};
         result.title=clean(typeof value('dc:title')==='string'?value('dc:title'):info.Title);

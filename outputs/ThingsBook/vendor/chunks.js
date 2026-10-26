@@ -53,6 +53,15 @@ const ThingsChunks = (() => {
     return pieces;
   }
 
+  // One decrypted piece, for reading a book by byte range. Every piece but the last is exactly SIZE bytes.
+  async function piece(record, key, get, index) {
+    const {count:total, bytes} = record.chunks;
+    if (!Number.isInteger(index) || index < 0 || index >= total) throw damaged();
+    const plain = await open(await get(index), key, record.id, index, total);
+    if (plain.byteLength !== (index < total - 1 ? SIZE : bytes - SIZE * (total - 1))) throw damaged();
+    return plain;
+  }
+
   // Checks every piece of a record whose pieces are already in memory, e.g. from a backup.
   async function verify(record, parts, key) {
     if (!record.chunks || !Array.isArray(parts) || parts.length !== record.chunks.count) throw damaged();
@@ -65,6 +74,6 @@ const ThingsChunks = (() => {
   const sealedBytes = chunks => chunks.bytes + 16 * chunks.count;
   const valid = chunks => !!chunks && Number.isInteger(chunks.count) && chunks.count >= 1 && Number.isInteger(chunks.bytes) && chunks.bytes >= 0 && chunks.count === count(chunks.bytes);
 
-  return Object.freeze({SIZE, count, write, read, verify, sealedBytes, valid});
+  return Object.freeze({SIZE, count, write, read, piece, verify, sealedBytes, valid});
 })();
 if (typeof module !== 'undefined') module.exports = ThingsChunks;

@@ -1,0 +1,66 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<FictionBook xmlns="http://www.gribuser.ru/xml/fictionbook/2.0" xmlns:l="http://www.w3.org/1999/xlink">
+<description>
+    <title-info>
+        <genre>antique</genre>
+        <author><first-name>Test</first-name><last-name>Author</last-name></author>
+        <book-title>The Lantern Keeper</book-title>
+        <coverpage><image l:href="#img_0"/></coverpage>
+        <lang>en</lang>
+    </title-info>
+    <document-info>
+        <author><first-name>Test</first-name><last-name>Author</last-name></author>
+        <program-used>calibre 7.6.0</program-used>
+        <date>26.10.2026</date>
+        <id>39f1ac31-7408-4e6a-a40d-d965c8b65b40</id>
+        <version>1.0</version>
+    </document-info>
+    <publish-info>
+        <publisher>Fixture Press</publisher>
+    </publish-info>
+</description>
+<body>
+<section>
+<p><image l:href="#img_0"/></p>
+</section>
+<section>
+<p><strong>Chapter 1: The Lantern Keeper</strong></p>
+<p>Mara kept the lantern on the northern pier for eleven winters.</p>
+<p>Every evening she trimmed the wick, wrote the weather in her ledger, and counted the boats home.</p>
+<p>Accents survive conversion: café, naïve, façade. So do other scripts: Ελληνικά, Русский, 日本語.</p>
+<p><image l:href="#img_1"/></p>
+<p>Skip ahead to the ending.</p>
+</section>
+<section>
+<p><strong>Chapter 2: The Ledger</strong></p>
+<p>The ledger recorded wind, tide and the names of every vessel that passed the breakwater.</p>
+<p>Its last page was blank except for a single line: see the final chapter.</p>
+</section>
+<section>
+<p><strong>Chapter 3: The Final Chapter</strong></p>
+<p><emphasis>On the last night of the eleventh winter, every boat came home before dark.</emphasis></p>
+</section>
+</body>
+<binary id="img_0" content-type="image/png">iVBORw0KGgoAAAANSUhEUgAAASwAAAHCCAIAAADaUWPQAAADqElEQVR42u3TQQkAAAgEwYtm
+CnvY/yOm8DMwCRY20wU8igRgQjAhYEIwIWBCMCFgQjAhYEIwIWBCMCFgQjAhYEIwIWBCMCFg
+QjAhYEIwIWBCMCFgQjAhYEIwIWBCMCFgQjAhYEIwIWBCMCFgQjAhYEIwIWBCMCFgQjAhYEIw
+IWBCMCFgQjAhYEIwIWBCMCFgQjAhYEIwIWBCMCFgQjAhYEIwIZhQBTAhmBAwIZgQMCGYEDAh
+mBAwIZgQMCGYEDAhmBAwIZgQMCGYEDAhmBAwIZgQMCGYEDAhmBAwIZgQMCGYEDAhmBAwIZgQ
+MCGYEDAhmBAwIZgQMCGYEDAhmBAwIZgQMCGYEDAhmBAwIZgQMCGYEDAhmBAwIZgQMCGYEDAh
+mBAwIZgQTKgCmBBMCJgQTAiYEEwImBBMCJgQTAiYEEwImBBMCJgQTAiYEEwImBBMCJgQTAiY
+EEwImBBMCJgQTAiYEEwImBBMCJgQTAiYEEwImBBMCJgQTAiYEEwImBBMCJgQTAiYEEwImBBM
+CJgQTAiYEEwImBBMCJgQTAiYEEwImBBMCJgQTAgmBEwIJgRMCCYETAgmBEwIJgRMCCYETAgm
+BEwIJgRMCCYETAgmBEwIJgRMCCYETAgmBEwIJgRMCCYETAgmBEwIJgRMCCYETAgmBEwIJgRM
+CCYETAgmBEwIJgRMCCYETAgmBEwIJgRMCCYETAgmBEwIJgRMCCYETAgmBEwIJgQTSgAmBBMC
+JgQTAiYEEwImBBMCJgQTAiYEEwImBBMCJgQTAiYEEwImBBMCJgQTAiYEEwImBBMCJgQTAiYE
+EwImBBMCJgQTAiYEEwImBBMCJgQTAiYEEwImBBMCJgQTAiYEEwImBBMCJgQTAiYEEwImBBMC
+JgQTAiYEEwImBBMCJgQTgglVABOCCQETggkBE4IJAROCCQETggkBE4IJAROCCQETggkBE4IJ
+AROCCQETggkBE4IJAROCCQETggkBE4IJAROCCQETggkBE4IJAROCCQETggkBE4IJAROCCQET
+ggkBE4IJAROCCQETggkBE4IJAROCCQETggkBE4IJAROCCQETggnBhCqACcGEgAnBhIAJwYSA
+CcGEgAnBhIAJwYSACcGEgAnBhIAJwYSACcGEgAnBhIAJwYSACcGEgAnBhIAJwYSACcGEgAnB
+hIAJwYSACcGEgAnBhIAJwYSACcGEgAnBhIAJwYSACcGEgAnBhIAJwYSACcGEgAnBhIAJwYTA
+WeYi4xzx/1qaAAAAAElFTkSuQmCC</binary>
+<binary id="img_1" content-type="image/png">iVBORw0KGgoAAAANSUhEUgAAAEAAAAAwCAIAAAAuKetIAAAARElEQVR42u3PQQkAAAgEsKtk
+Db/272IFv8JgBZaafi0CAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAlcL9XCo
+iNVB5sMAAAAASUVORK5CYII=</binary>
+</FictionBook>
