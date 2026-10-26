@@ -62,6 +62,7 @@ async function main() {
     assert.equal(meta.filename, name.replace(/\.[^.]+$/, '.epub'));
     assert.equal(meta.title, 'The Lantern Keeper'); assert.equal(meta.author, 'Test Author');
     assert(meta.cover, `${name}: cover extracted`);
+    assert.equal(await page.evaluate(id => { showDetail(id); const label = [...$('book-detail').querySelectorAll('button')].find(b => /Download/.test(b.textContent))?.textContent; $('detail-dialog').close(); return label; }, result.id), 'Download EPUB ↓', 'converted books offer the EPUB, not an original');
     const epub = await inspect(page, result.id);
     assert.equal(epub.first, 'mimetype'); assert.equal(epub.mimetype, 'application/epub+zip');
     assert.deepEqual(epub.hasText, [], `${name}: text missing`);
