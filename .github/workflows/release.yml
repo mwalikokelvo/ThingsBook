@@ -58,6 +58,7 @@ jobs:
       - name: Check the version
         shell: pwsh
         run: |
+          trap { "::error title=Release check::$_"; exit 1 }
           $version = (Get-Content work/thingsbook-desktop/package.json -Raw | ConvertFrom-Json).version
           $wanted = if ($env:VERSION) { $env:VERSION } else { $env:GITHUB_REF_NAME -replace '^v', '' }
           if ($version -ne $wanted) { throw "This commit carries version $version, not $wanted. Run work/set-version.py $wanted --release-notes and commit first." }
