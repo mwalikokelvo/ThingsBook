@@ -9,6 +9,11 @@
   second copy. The check covers every byte but reads large PDFs 4 MiB at a time, never whole. Books
   saved earlier get their fingerprint in the background while the app is idle (except converted ones).
   Fingerprints are kept inside each book's encrypted details.
+- **RTF documents (.rtf)** from WordPad, TextEdit, Word or pandoc import as EPUB: chapters at headings,
+  bold/italic/underline and super/subscript, lists, tables, links, pictures (PNG and JPEG) and
+  footnotes (gathered into a linked Notes chapter), with the title and author the document records.
+  Text in other alphabets is decoded with the document's or font's code page. Page headers and
+  footers, comments and other hidden parts are left out.
 - **Open with ThingsBook (Android).** ThingsBook appears in "Open with" and the share sheet for the book
   formats it imports, so a book downloaded in the browser or received in a chat goes straight in. The
   import dialog opens with the files chosen (after you unlock, if the library is locked), and nothing is

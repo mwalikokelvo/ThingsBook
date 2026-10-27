@@ -24,6 +24,8 @@ window.ThingsImport = (() => {
     if(bytes.length>68&&String.fromCharCode(...bytes.subarray(60,68))==='BOOKMOBI')return 'MOBI';
     // FictionBook (FB2): an XML book whose root element is <FictionBook>; converted to EPUB on import.
     {const start=bytes[0]===0xef&&bytes[1]===0xbb&&bytes[2]===0xbf?3:0;if(/^\s*(?:<\?xml[^?]*\?>\s*)?(?:<!--[\s\S]*?-->\s*)*<FictionBook[\s>]/.test(String.fromCharCode(...bytes.subarray(start,start+4096))))return 'FB2';}
+    // Rich Text Format: "{\rtf" at the start; converted to EPUB on import.
+    if(typeof ThingsRtf!=='undefined'&&ThingsRtf.isRtf(bytes))return 'RTF';
     if(bytes[0]===80&&bytes[1]===75&&bytes[2]===3&&bytes[3]===4){
       let container;
       try{container=member(data,'META-INF/container.xml',1024*1024);const doc=xml(container);if([...doc.getElementsByTagName('*')].some(n=>n.localName==='rootfile'&&n.getAttribute('full-path')))return 'EPUB';}
@@ -50,7 +52,7 @@ window.ThingsImport = (() => {
     if(extension==='pdf')throw new Error('This file does not appear to be a valid PDF.');
     if(extension==='epub')throw new Error('This file does not appear to be an EPUB archive.');
     if(extension==='txt')return 'TXT';
-    throw new Error('Choose PDF, EPUB or TXT books, or DRM-free Kindle (MOBI/AZW3) Word (.docx), OpenDocument (.odt), FictionBook (.fb2), comic (.cbz), Markdown (.md) and web page (.html) books; the file contents were not recognized.');
+    throw new Error('Choose PDF, EPUB or TXT books, or DRM-free Kindle (MOBI/AZW3) Word (.docx), OpenDocument (.odt), RTF, FictionBook (.fb2), comic (.cbz), Markdown (.md) and web page (.html) books; the file contents were not recognized.');
   }
   function xml(bytes) {
     const text = ReaderCore.decodeText(bytes);
