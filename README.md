@@ -1,10 +1,10 @@
 # ThingsBook
 
-ThingsBook is a private, local-first reading and listening app for Windows and Android. It imports PDF, EPUB, and TXT books, keeps the library on the device, supports encrypted backup and restore, and provides reading, annotation, research, OCR, and narration tools.
+ThingsBook is a private, local-first reading and listening app for Windows and Android. It imports PDF, EPUB, TXT, Kindle (MOBI/AZW3), Word, OpenDocument, RTF, FictionBook, comic, Markdown and web-page books, keeps the library on the device, supports encrypted backup and restore, and provides reading, annotation, research, OCR, and narration tools.
 
 ## Current release
 
-The last packaged release is **ThingsBook 1.12.5**; `main` also contains unreleased changes listed in `CHANGELOG.md` (Kindle, Word, FB2 and comic import, chunked storage, streaming backups and restore, large PDFs). The corresponding Windows EXE and Android APK are distributed as release assets rather than committed to Git.
+The latest release is **ThingsBook 1.14.0**: the Windows EXE and the Android APK (signed with the original key, so it installs over earlier versions) are on the [GitHub Releases page](https://github.com/mwalikokelvo/ThingsBook/releases), with checksums; they are not committed to Git. `CHANGELOG.md` lists what changed in each version.
 
 Highlights include:
 

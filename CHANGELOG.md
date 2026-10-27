@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+## 1.14.0 — 2026-10-27
+
 ### New
 - **No more accidental duplicates.** A book that is already in your library (same content, whatever its
   file name) is not imported again; the import names the book it matches. Converted books (Kindle, Word,
