@@ -27,6 +27,18 @@ def windows():
     if not native.is_file():
         raise RuntimeError('Build the verified native core before packaging Windows.')
     shutil.copy2(native, DESKTOP / 'native/thingsbook-core.exe')
+    # Electron 44+ no longer downloads its runtime during `npm ci`; its install.js does, checked against the
+    # package's pinned checksums. It exits at once when dist/ already holds this version for Windows x64.
+    electron = DESKTOP / 'node_modules/electron'
+    if not (electron / 'install.js').is_file():
+        raise RuntimeError('Run `npm ci` in work/thingsbook-desktop first (Electron is not installed).')
+    node = shutil.which('node')
+    if not node:
+        raise RuntimeError('Node.js is needed to fetch the Electron runtime.')
+    subprocess.run([node, str(electron / 'install.js')], cwd=DESKTOP, check=True,
+                   env={**os.environ, 'ELECTRON_INSTALL_PLATFORM':'win32', 'ELECTRON_INSTALL_ARCH':'x64'})
+    if not (electron / 'dist/electron.exe').is_file():
+        raise RuntimeError('The Electron runtime did not install (node_modules/electron/dist/electron.exe is missing).')
     run(sys.executable, ROOT / 'work/prepare-independent.py')
     framework = Path(os.environ['WINDIR']) / 'Microsoft.NET/Framework64/v4.0.30319/csc.exe'
     speech = next((Path(os.environ['WINDIR']) / 'Microsoft.NET/assembly/GAC_MSIL/System.Speech').rglob('System.Speech.dll'))

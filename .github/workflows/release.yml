@@ -30,6 +30,10 @@ on:
         description: Publish even if the Android signing secrets are missing (EXE only)
         type: boolean
         default: false
+      windows_only:
+        description: Build only the Windows EXE and add it to the existing release v<version>
+        type: boolean
+        default: false
 
 permissions:
   contents: write
@@ -45,6 +49,8 @@ jobs:
     env:
       VERSION: ${{ github.event.inputs.version || '' }}
       HAS_KEYSTORE: ${{ secrets.ANDROID_KEYSTORE_BASE64 != '' && secrets.ANDROID_KEYSTORE_PASSWORD != '' }}
+      WINDOWS_ONLY: ${{ github.event.inputs.windows_only == 'true' }}
+      GH_TOKEN: ${{ github.token }}
     steps:
       - uses: actions/checkout@v4
         with:
@@ -62,8 +68,13 @@ jobs:
           $version = (Get-Content work/thingsbook-desktop/package.json -Raw | ConvertFrom-Json).version
           $wanted = if ($env:VERSION) { $env:VERSION } else { $env:GITHUB_REF_NAME -replace '^v', '' }
           if ($version -ne $wanted) { throw "This commit carries version $version, not $wanted. Run work/set-version.py $wanted --release-notes and commit first." }
-          if ($env:GITHUB_REF_TYPE -ne 'tag' -and (git tag --list "v$wanted")) { throw "v$wanted is already released." }
           "VERSION=$version" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
+          if ($env:WINDOWS_ONLY -eq 'true') {
+            gh release view "v$wanted" --json tagName | Out-Null
+            if ($LASTEXITCODE -ne 0) { throw "windows_only adds the EXE to an existing release, but v$wanted has not been released." }
+            return
+          }
+          if ($env:GITHUB_REF_TYPE -ne 'tag' -and (git tag --list "v$wanted")) { throw "v$wanted is already released." }
           if ($env:HAS_KEYSTORE -ne 'true') {
             if ('${{ github.event.inputs.allow_without_apk }}' -ne 'true') { throw 'The ANDROID_KEYSTORE_BASE64 / ANDROID_KEYSTORE_PASSWORD secrets are not set, so the APK cannot be signed. Nothing was published. Add them, or rerun with allow_without_apk.' }
             "::warning title=No Android signing key::The ANDROID_KEYSTORE_* secrets are not set; this release will have no APK."
@@ -84,7 +95,7 @@ jobs:
         run: node work/run-tests.cjs --require-browser
 
       - name: Android APK (signed with the original key)
-        if: env.HAS_KEYSTORE == 'true'
+        if: env.HAS_KEYSTORE == 'true' && env.WINDOWS_ONLY != 'true'
         shell: pwsh
         env:
           KEYSTORE: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
@@ -108,7 +119,8 @@ jobs:
 
       - name: Windows EXE
         id: windows
-        continue-on-error: true
+        # In a full release the EXE may fail without holding the APK back; in windows_only it is the point.
+        continue-on-error: ${{ github.event.inputs.windows_only != 'true' }}
         shell: pwsh
         run: |
           Push-Location work/thingsbook-desktop; npm ci; if ($LASTEXITCODE) { throw 'npm ci failed' }; Pop-Location
@@ -120,8 +132,16 @@ jobs:
           }
           node work/run-tests.cjs provider-1125 --no-skip
           if ($LASTEXITCODE -ne 0) { throw 'Windows device-protection test failed.' }
+          # Start the real EXE hidden, with a throwaway profile, twice; it must report a working app.
+          python work/tests/launch-packaged-1125.py 2>&1 | Tee-Object -FilePath smoke.log
+          if ($LASTEXITCODE -ne 0) {
+            Get-Content smoke.log -Tail 15 | ForEach-Object { "::error title=EXE smoke test::$($_ -replace '%','%25' -replace '\r','')" }
+            Remove-Item "outputs/ThingsBook-Independent-$env:VERSION.exe" -ErrorAction SilentlyContinue
+            throw 'The packaged EXE did not start correctly; it is not published.'
+          }
 
       - name: Checksums and release notes
+        if: env.WINDOWS_ONLY != 'true'
         shell: pwsh
         run: |
           $names = @("ThingsBook-Independent-$env:VERSION.exe", "ThingsBook-Android-$env:VERSION.apk")
@@ -137,10 +157,26 @@ jobs:
           if (-not (Test-Path "outputs/ThingsBook-Independent-$env:VERSION.exe")) { $notes += "`n`nThis release has no Windows EXE: its build failed (see the workflow run). Build it with python work/release.py on Windows." }
           Set-Content "$env:RUNNER_TEMP/release-notes.md" $notes -Encoding utf8
       - name: Publish the GitHub release
+        if: env.WINDOWS_ONLY != 'true'
         shell: pwsh
-        env:
-          GH_TOKEN: ${{ github.token }}
         run: |
           $assets = @("ThingsBook-Independent-$env:VERSION.exe", "ThingsBook-Android-$env:VERSION.apk", "ThingsBook-$env:VERSION-SHA256SUMS.txt") |
             ForEach-Object { Join-Path outputs $_ } | Where-Object { Test-Path $_ }
           gh release create "v$env:VERSION" @assets --target $env:GITHUB_SHA --title "ThingsBook $env:VERSION" --notes-file "$env:RUNNER_TEMP/release-notes.md"
+      - name: Add the EXE to the existing release
+        if: env.WINDOWS_ONLY == 'true'
+        shell: pwsh
+        run: |
+          $exe = "outputs/ThingsBook-Independent-$env:VERSION.exe"
+          if (-not (Test-Path $exe)) { throw 'No EXE was built.' }
+          $sums = "outputs/ThingsBook-$env:VERSION-SHA256SUMS.txt"
+          gh release download "v$env:VERSION" --pattern (Split-Path $sums -Leaf) --dir outputs --clobber
+          $lines = @(Get-Content $sums -ErrorAction SilentlyContinue | Where-Object { $_ -and $_ -notmatch 'ThingsBook-Independent-' })
+          $lines += "{0}  {1}" -f (Get-FileHash $exe -Algorithm SHA256).Hash.ToLower(), (Split-Path $exe -Leaf)
+          Set-Content $sums $lines -Encoding utf8
+          gh release upload "v$env:VERSION" $exe $sums --clobber
+          $body = (gh release view "v$env:VERSION" --json body | ConvertFrom-Json).body
+          $body = $body -replace '(?s)\s*This release has no Windows EXE:[^\n]*', ''
+          $body += "`n`nThe Windows EXE was added after release, built from $($env:GITHUB_SHA.Substring(0,7)): the same app, with a fix to the Windows build script."
+          Set-Content "$env:RUNNER_TEMP/notes.md" $body -Encoding utf8
+          gh release edit "v$env:VERSION" --notes-file "$env:RUNNER_TEMP/notes.md"
