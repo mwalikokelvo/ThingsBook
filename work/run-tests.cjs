@@ -76,7 +76,9 @@ for (const file of files) {
   if (selfSkip && !(requireBrowser && /playwright/i.test(selfSkip[1]))) { results.skip.push({file, reason: selfSkip[1] || 'skipped itself', printed: true}); console.log(`SKIP  ${file}  - ${selfSkip[1]}`); continue; }
   if (selfSkip) r.stderr = `Chromium test did not run: ${selfSkip[1]} Install it with: npm install --prefix work/test-tools playwright@1.63.0, then node work/test-tools/node_modules/playwright/cli.js install chromium`;
   const ok = r.status === 0 && !r.error && !selfSkip;
-  const tail = ((r.stdout || '') + (r.stderr || '')).trim().split('\n').slice(-6).join('\n');
+  // The error line itself (often above a long assertion dump) plus the last lines of output.
+  const lines = ((r.stdout || '') + (r.stderr || '')).trim().split('\n'), errorLine = lines.find(l => /(Error|ERR_)[^]*?:/.test(l) && !/^\s+at /.test(l));
+  const tail = [...new Set([errorLine, ...lines.slice(-6)].filter(Boolean))].join('\n');
   (ok ? results.pass : results.fail).push({ file, secs, tail, timedOut: r.error && r.error.code === 'ETIMEDOUT' });
   console.log(`${ok ? 'PASS' : 'FAIL'}  ${file}  (${secs}s)${!ok ? (r.error && r.error.code === 'ETIMEDOUT' ? '  TIMED OUT' : '') : ''}`);
   if (!ok) console.log(tail.split('\n').map(l => '      ' + l.slice(0, 200)).join('\n'));

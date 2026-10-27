@@ -10,8 +10,9 @@ const assert = require('node:assert/strict');
 const {serve, syntheticPdf, cleanup} = require('./browser-helpers.cjs');
 const app = path.resolve(process.argv[2] || path.join(__dirname, '../../outputs/ThingsBook'));
 const profile = fs.mkdtempSync(path.join(os.tmpdir(), 'tb-narration-'));
-const sentence = i => `Sentence ${i} walks a little further along the quiet harbour road before the evening bell.`;
-const long = n => 'It began *slowly* that year. ' + Array.from({length:n}, (_, i) => sentence(i + 1)).join(' ');
+// Every sentence is unique (paragraph and sentence number), so spoken text can be found on the page.
+let paragraphNumber = 0;
+const long = n => { const p = ++paragraphNumber; return `Paragraph ${p} began *slowly* that year. ` + Array.from({length:n}, (_, i) => `Sentence ${p}-${i + 1} walks a little further along the quiet harbour road before the evening bell.`).join(' '); };
 const MD = `# Arrival\n\n${long(14)}\n\nA short line.\n\n${[1,2,3,4,5,6].map(() => long(14)).join('\n\n')}\n\n# Departure\n\nThe second chapter opens here.\n\n${[1,2,3].map(() => long(14)).join('\n\n')}\n`;
 
 async function until(page, check, arg, timeout = 20000) { const end = Date.now() + timeout; for (;;) { const value = await page.evaluate(check, arg); if (value) return value; if (Date.now() > end) throw new Error(`Timed out waiting for: ${check}`); await new Promise(r => setTimeout(r, 100)); } }
@@ -51,8 +52,8 @@ async function main() {
   await open(epub);
   const passages = await page.evaluate(() => [...document.querySelectorAll('#reader-content .reader-passage')].map(p => ({length:p.textContent.length, em:!!p.querySelector('em'), end:p.textContent.trim().slice(-20)})));
   assert.equal(passages.length, 9, 'heading, seven long paragraphs and a short one');
-  assert(passages[1].length > 1000 && passages[1].em, 'a 1,300-character paragraph is one passage with its italics');
-  assert(passages.every(p => /[.!?]$|Arrival$/.test(p.end)), 'no passage ends mid-sentence');
+  assert(passages[1].length > 1000 && passages[1].em, `a long paragraph is one passage with its italics (${JSON.stringify(passages[1])})`);
+  assert(passages.every(p => /[.!?]$|Arrival$/.test(p.end)), `no passage ends mid-sentence: ${JSON.stringify(passages.map(p => p.end))}`);
   report.push('long book paragraphs stay whole (no mid-sentence splits) and keep their italics');
 
   // Read aloud starts at the screen being looked at.
@@ -65,8 +66,8 @@ async function main() {
   await page.evaluate(() => { window.__speakMs = 400; window.__spoken = []; });
   await page.click('#narrator-play');
   await until(page, () => window.__spoken.length >= 1);
-  const firstOnScreen = await page.evaluate(() => { const spoken = window.__spoken[0].slice(0, 24), view = $('reader-content').getBoundingClientRect(); const walker = document.createTreeWalker($('reader-content'), NodeFilter.SHOW_TEXT); for (let t = walker.nextNode(); t; t = walker.nextNode()) { const at = t.data.indexOf(spoken); if (at >= 0) { const r = document.createRange(); r.setStart(t, at); r.setEnd(t, at + 1); const box = r.getClientRects()[0]; return !!box && box.left >= view.left - 2 && box.right <= view.right + 2; } } return false; });
-  assert(firstOnScreen, `Read aloud on ${screen} starts with words on that screen, not the saved place`);
+  const firstOnScreen = await page.evaluate(() => { const spoken = window.__spoken[0].slice(0, 40), view = $('reader-content').getBoundingClientRect(); const walker = document.createTreeWalker($('reader-content'), NodeFilter.SHOW_TEXT); for (let t = walker.nextNode(); t; t = walker.nextNode()) { const at = t.data.indexOf(spoken); if (at >= 0) { const r = document.createRange(); r.setStart(t, at); r.setEnd(t, at + 1); const box = r.getClientRects()[0]; return !!box && box.left >= view.left - 2 && box.right <= view.right + 2; } } return false; });
+  assert(firstOnScreen, `Read aloud on ${screen} starts with words on that screen, not the saved place (first words: ${await page.evaluate(() => window.__spoken[0].slice(0, 60))})`);
   assert.notEqual(await page.evaluate(() => window.__spoken[0]), 'Arrival', 'not from the start of the chapter');
   report.push(`Read aloud on "${screen}" starts with words on that screen`);
 
@@ -75,7 +76,7 @@ async function main() {
   await until(page, () => window.__spoken.length >= 14, null, 30000);
   const lefts = await page.evaluate(() => { clearInterval(window.__watch); return window.__left; });
   for (let i = 1; i < lefts.length; i++) assert(lefts[i] >= lefts[i - 1] - 2, `view moved back from ${lefts[i - 1]} to ${lefts[i]}`);
-  assert(lefts.at(-1) > lefts[0], 'the view followed the reading forward');
+  assert(lefts.at(-1) > lefts[0], `the view followed the reading forward (${lefts[0]} → ${lefts.at(-1)})`);
   report.push(`Follow text only moved forward (${lefts[0]} → ${lefts.at(-1)} px) while reading`);
 
   // Turning the screen and the chapter while reading keeps reading.
