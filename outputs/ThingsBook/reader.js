@@ -200,7 +200,8 @@ const ThingsReader = (() => {
     }
     return null;
   }
-  function startVisible() { const node = passages()[session.paragraph]; if (!node) return true; const rect = textRect(node,0); if (!rect) return true; const view = viewRect(); if (onScreen(rect,view)) return true; const box = node.getBoundingClientRect(); return box.top < view.bottom && box.bottom > view.top && box.left < view.right && box.right > view.left; }
+  // Whether the words narration would resume from (passage and chunk) are on screen.
+  function startVisible(chunk = 0) { const node = passages()[session.paragraph]; if (!node) return true; const text = node.textContent, offsets = chunkOffsets(text,narrationChunks(text)), rect = textRect(node,offsets[Math.min(chunk,offsets.length-1)] || 0); return !rect || onScreen(rect); }
   function paragraphize(host) {
     let candidates = [...host.querySelectorAll('p,h1,h2,h3,h4,li,blockquote,pre')].filter(n => n.textContent.trim() && !n.querySelector('p,li,blockquote,pre'));
     if (!candidates.length && host.textContent.trim()) { const text = host.textContent; host.replaceChildren(); for (const p of ReaderCore.paragraphs(text)) { const node = document.createElement('p'); node.textContent = p; host.append(node); } candidates = [...host.children]; }
@@ -437,7 +438,7 @@ const ThingsReader = (() => {
     if(!session)return;
     if(playing&&!paused){captureListening();paused=true;q('reader-dialog').dataset.narration='paused';if(audio)audio.pause();else if(/^(android|windows):/.test(q('narrator-voice').value))clearSpeech();else if(speechController||personalBridge())clearSpeech();else window.speechSynthesis?.pause();q('narrator-play').textContent='▶ Resume';window.ThingsListening?.stateChanged();say('Narration paused.');scheduleSave();return;}
     if(playing&&paused){paused=false;if(audio)await playAudio();else if(utterance&&window.speechSynthesis?.paused)window.speechSynthesis.resume();else {const saved=resumeListening();await speakCurrent(saved.chunk,saved.character,saved.audioSeconds);}q('narrator-play').textContent='Ⅱ Pause';window.ThingsListening?.stateChanged();return;}
-    let saved=resumeListening();if(!selectionNarration&&!startVisible()){const start=visibleStart();if(start){session.paragraph=start.paragraph;session.progress.listening=null;saved={chunk:start.chunk,character:0,audioSeconds:0};}}
+    let saved=resumeListening();if(!selectionNarration&&!startVisible(saved.chunk)){const start=visibleStart();if(start){session.paragraph=start.paragraph;session.progress.listening=null;saved={chunk:start.chunk,character:0,audioSeconds:0};}}
     playing=true;paused=false;q('narrator-play').textContent='Ⅱ Pause';setSleep();await speakCurrent(saved.chunk,saved.character,saved.audioSeconds);window.ThingsListening?.stateChanged();
   }
   function setSleep(){clearTimeout(sleepTimer);if(typeof clearInterval==='function')clearInterval(fadeTimer);fadeLevel=1;window.ThingsSanctuary?.fadeAmbient?.(1);const minutes=Number(q('narrator-sleep').value);sleepTotal=minutes*60000;sleepDeadline=playing&&minutes?Date.now()+sleepTotal:0;

@@ -57,7 +57,8 @@ async function main() {
   report.push('long book paragraphs stay whole (no mid-sentence splits) and keep their italics');
 
   // Read aloud starts at the screen being looked at.
-  await page.evaluate(() => { $('reader-layout').value = 'paged'; $('reader-layout').onchange(); });
+  // Larger text, so the first long paragraph runs on from screen 1 onto screen 2.
+  await page.evaluate(() => { $('reader-size').value = 26; $('reader-size').oninput(); $('reader-layout').value = 'paged'; $('reader-layout').onchange(); });
   await page.waitForTimeout(300);
   await page.click('#reader-screen-next'); await until(page, () => $('reader-content').scrollLeft >= 1000 && !/^Screen 1 /.test($('reader-screen-status').textContent));
   const screen = await page.evaluate(() => $('reader-screen-status').textContent);
