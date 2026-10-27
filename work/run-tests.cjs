@@ -80,6 +80,8 @@ for (const file of files) {
   (ok ? results.pass : results.fail).push({ file, secs, tail, timedOut: r.error && r.error.code === 'ETIMEDOUT' });
   console.log(`${ok ? 'PASS' : 'FAIL'}  ${file}  (${secs}s)${!ok ? (r.error && r.error.code === 'ETIMEDOUT' ? '  TIMED OUT' : '') : ''}`);
   if (!ok) console.log(tail.split('\n').map(l => '      ' + l.slice(0, 200)).join('\n'));
+  // On GitHub Actions, failures also become annotations, readable from the API without the raw log.
+  if (!ok && process.env.GITHUB_ACTIONS) console.log(`::error title=FAIL ${file}::${(r.error && r.error.code === 'ETIMEDOUT' ? 'TIMED OUT. ' : '') + tail.replace(/%/g, '%25').replace(/\r/g, '').replace(/\n/g, '%0A').slice(0, 3000)}`);
 }
 
 for (const s of results.skip) if (!s.printed) console.log(`SKIP  ${s.file}  - ${s.reason}`);
