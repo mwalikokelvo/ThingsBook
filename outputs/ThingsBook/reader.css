@@ -133,3 +133,6 @@ body.reader-active{overflow:hidden}
  .reader-dock .reader-dock-categories{flex-wrap:wrap}
  .reader-dock .reader-dock-panel .reader-dock-categories button{padding:6px 9px;min-height:38px;font-size:12px}
 }
+#reader-dialog:is([data-theme=dark],[data-theme=oled]) .reader-dock button.secondary,#reader-dialog:is([data-theme=dark],[data-theme=oled]) .reader-heading-actions button{background:#2c3a32;color:#e8eade;border-color:#4b5c4f}
+#reader-dialog:is([data-theme=dark],[data-theme=oled]) .reader-dock button.secondary:disabled{background:#232c27;color:#7d8a80}
+#reader-dialog:is([data-theme=dark],[data-theme=oled]) .reader-dock-categories button[aria-pressed=true]{background:#5f8f78;border-color:#5f8f78;color:#0d1511}

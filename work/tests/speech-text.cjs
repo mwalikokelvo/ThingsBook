@@ -7,6 +7,7 @@ const assert = require('node:assert/strict');
 const app = path.join(__dirname, '../../outputs/ThingsBook');
 const context = {window:{}}; vm.createContext(context);
 vm.runInContext(fs.readFileSync(path.join(app, 'vendor/speech-text.js'), 'utf8'), context);
+vm.runInContext(fs.readFileSync(path.join(app, 'vendor/metadata.js'), 'utf8'), context);
 vm.runInContext(fs.readFileSync(path.join(app, 'reader.js'), 'utf8').split('const ThingsReader')[0] + '\nglobalThis.ReaderCore = ReaderCore;', context);
 const {spoken} = context.window.ThingsSpeechText, core = context.ReaderCore;
 
@@ -34,4 +35,14 @@ const long = 'The lantern shone over the harbour every night. '.repeat(30).trim(
 const parts = core.paragraphs(long);
 assert(parts.length > 1 && parts.every(p => p.endsWith('.')), 'long plain paragraphs split only at sentence ends');
 assert.equal(parts.join(' '), long);
+const {tidy} = context.window.ThingsMetadata;
+for (const [input, output] of [
+  [{title:'One Nation Under Blackmail, Volume 2 (Whitney Webb)Trine Day 2022', author:'Unknown author'}, {title:'One Nation Under Blackmail, Volume 2', author:'Whitney Webb'}],
+  [{title:'Hope for the World: To Unite All Things in Christ (Cardinal Christoph Schönborn) Ignatius Press 2015', author:'Unknown author'}, {title:'Hope for the World: To Unite All Things in Christ', author:'Cardinal Christoph Schönborn'}],
+  [{title:'Fulfilled in our hearing : history and method of Christian preaching', author:'DeBona, Guerric, 1955-'}, {title:'Fulfilled in our hearing: history and method of Christian preaching', author:'Guerric DeBona'}],
+  [{title:'The Republic (Penguin Classics)', author:'Unknown author'}, {title:'The Republic (Penguin Classics)', author:'Unknown author'}],
+  [{title:'Divine Love Made Flesh (Volume 2)', author:'Unknown author'}, {title:'Divine Love Made Flesh (Volume 2)', author:'Unknown author'}],
+  [{title:'Five Loaves and Two Fish', author:'Francis-Xavier Nguyen Van Thuan'}, {title:'Five Loaves and Two Fish', author:'Francis-Xavier Nguyen Van Thuan'}],
+]) assert.deepEqual({...tidy(input)}, output);
+console.log('PASS: book titles and authors from download-site names and catalogue records are tidied; ordinary titles are left alone.');
 console.log('PASS: spoken dates, years, numbers, titles and initials; PDF text joins split words and hyphenated lines and finds paragraphs; long paragraphs split at sentence ends.');

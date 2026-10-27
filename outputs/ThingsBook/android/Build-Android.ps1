@@ -2,7 +2,7 @@ param(
   [string]$ToolsRoot = 'C:\Users\mwali\Documents\Codex\2026-10-03\https-github-com-louis-cfm-coucou\work\android-tools',
   [string]$BuildRoot = '',
   [string]$SigningRoot = '',
-  [string]$Version = '1.14.0',
+  [string]$Version = '1.14.1',
   [int]$VersionCode = 11205
 )
 $ErrorActionPreference = 'Stop'

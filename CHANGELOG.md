@@ -2,6 +2,63 @@
 
 ## Unreleased
 
+## 1.14.1 — 2026-10-27
+
+Fixes from reviewing a screen recording of 1.14.0 on Windows and two outside reports.
+
+### Read aloud
+- **Turning the page no longer stops reading.** The arrows, Next/Previous chapter, the page list, the
+  keyboard and swipes carry on reading from the first words of the new screen or page.
+- **Personal voices start in a second or two after the first time** (Windows): stopping, pausing or
+  turning a page used to restart the voice engine and reload its model, which took 10-20 seconds and
+  caused most of the long "Buffering" pauses. The engine now stops the passage it is reading and keeps
+  the model loaded. It also uses up to four processor threads instead of two.
+- **Read aloud starts at the screen you are looking at** when your saved place is somewhere else, and
+  no longer jumps back to the start of a long paragraph that began on the previous screen.
+- **Follow text moves only when the words being read leave the screen,** and only forward, instead of
+  jumping back and forth while a long paragraph is read.
+- **Status line is accurate:** it says "Narration stopped" when reading stops, instead of still saying
+  "Reading in your personal voice. Preparing the next segment locally."
+- **Personal voices say dates, years and numbers as words** ("August 22, 2022" is read "August
+  twenty-second, twenty twenty-two"), titles ("Dr." as "Doctor") and initials ("R.A." as "R. A.").
+  The page text is unchanged.
+- Blank PDF pages are skipped when reading the whole book instead of counting as unreadable scans.
+
+### Reading
+- **Paragraphs are no longer cut in the middle of a sentence.** Long book paragraphs stay whole with
+  their italics and links; long plain-text paragraphs are split only at the end of a sentence.
+  Existing highlights and bookmarks are found again by their text.
+- **Cleaner PDF page text:** no stray spaces inside words ("five thou sand", "fatig ue") or before
+  punctuation, hyphenated line ends joined, and paragraphs found from indents and spacing.
+- A blank PDF page says "This page appears to be blank" instead of asking for text recognition; a
+  scanned page offers **Recognize this page** right beside the message.
+- The PDF ready message matches the layout (no "text shown below" when no text is shown).
+- The chapter, percent and "saved" line is no longer hidden behind the floating controls bar.
+
+### Reader tools
+- On wide screens Tools opens as a panel beside the page, and the page narrows to stay readable,
+  instead of a sheet covering the bottom half.
+- New **Study** tab for Reflections, Dictionary, Cite, Compare and Flashcard (they were mixed into
+  Appearance). Typeface and spacing settings are hidden for PDF page images, where they do nothing.
+- Every control has a visible name: passage buttons, the chapter position slider, ambient sound and
+  its volume; sliders show their value; the font picker uses an app button.
+- The selected tab is clearly marked; dropdown lists are readable in every theme; buttons follow the
+  dark themes. The reader heading shows the author (and "PDF") instead of "ONE MORE CHAPTER".
+
+### Library
+- **Clean titles and authors:** names like "One Nation Under Blackmail, Volume 2 (Whitney Webb)Trine
+  Day 2022" become the title "One Nation Under Blackmail, Volume 2" by Whitney Webb, and catalogue
+  authors like "DeBona, Guerric, 1955-" become "Guerric DeBona". Applied to new imports and once to
+  books already in the library; details you edit yourself are kept.
+- Books with a real cover show the cover alone, without the generated title painted over it.
+- Shelves no longer show their own scrollbars; "Connections" and "Daily recall" no longer look
+  selected; the sort menu is no longer cut off; spines leave out "Unknown author".
+
+### Development
+- New tests: `narration-browser.cjs` (reading through page turns, starting on screen, forward-only
+  follow, stop status, blank pages), `voice-worker-cancel.cjs` (cancelling inside the voice worker
+  keeps the model loaded) and `speech-text.cjs` (spoken numbers, PDF text, sentence splitting).
+
 ## 1.14.0 — 2026-10-27
 
 ### New
