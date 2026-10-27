@@ -46,7 +46,8 @@ def tool(name):
 
 
 PLAYWRIGHT = 'playwright@1.63.0'
-# The last release before tags were used: ThingsBook 1.12.5. Later releases are found by their v* tags.
+# upgrade-browser.cjs covers upgrading from ThingsBook 1.12.5 (this commit), the last release that stored
+# books as whole files; later releases share the current storage format.
 LEGACY_RELEASE = 'c740c89'
 
 
@@ -91,8 +92,7 @@ def preflight(args):
 
 
 def previous_release(version):
-    tags = [t for t in git('tag', '--list', 'v*', '--sort=-v:refname').splitlines() if t != f'v{version}']
-    return tags[0] if tags else LEGACY_RELEASE
+    return LEGACY_RELEASE
 
 
 def notes(version):

@@ -89,9 +89,8 @@ jobs:
       - name: Previous release, for the upgrade test
         shell: pwsh
         run: |
-          $previous = git tag --list 'v*' --sort=-v:refname | Where-Object { $_ -ne "v$env:VERSION" } | Select-Object -First 1
-          if (-not $previous) { $previous = 'c740c89' }  # 1.12.5, the last release before tags
-          git worktree add --detach "$env:RUNNER_TEMP\previous" $previous
+          # upgrade-browser.cjs covers upgrading from 1.12.5 (c740c89), the last release that stored whole files.
+          git worktree add --detach "$env:RUNNER_TEMP\previous" c740c89
           "THINGSBOOK_RELEASED_DIR=$env:RUNNER_TEMP\previous\outputs\ThingsBook" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
       - name: Regression suite (Chromium tests must run)
         run: node work/run-tests.cjs --require-browser
