@@ -86,6 +86,25 @@ async function migrateBooks() {
   }
   return converted;
 }
+// Books saved before fingerprints existed get one in the background, so later imports can spot them.
+// Converted books (Kindle, Word, ...) store an EPUB, not the original file, so they cannot be matched.
+async function fingerprintBooks() {
+  if (typeof ThingsFingerprint === 'undefined') return 0;
+  const run = migrationRun, vaultKey = key, pause = ms => new Promise(resolve => setTimeout(resolve,ms));
+  const active = () => run === migrationRun && key === vaultKey;
+  let added = 0;
+  for (const book of books.filter(b => !b.fingerprint && !b.sourceFormat)) {
+    while (busy && active()) await pause(2000);
+    if (!active()) break;
+    try {
+      const source = await bookSource(book.id); if (!source) continue;
+      const fingerprint = await ThingsFingerprint.of(source);
+      if (active() && books.some(b => b.id === book.id)) { await updateBook(book.id,{fingerprint}); added++; }
+    } catch { /* tried again at the next unlock */ }
+    await pause(300);
+  }
+  return added;
+}
 async function allMetadata() { return new Promise((resolve,reject) => {
   const summaries = [], cursor = db.transaction('books').objectStore('books').openCursor();
   cursor.onerror = () => reject(cursor.error);
@@ -152,7 +171,7 @@ async function unlock(event) {
         tx.objectStore('settings').put(updated,'vault'); tx.objectStore('settings').put(remembered,'device-access');
       });
       pendingBackup = null; config = updated; key = candidateKey; shelves = decodedShelves; books = decodedBooks;
-      removeOrphanChunks().catch(() => {}); removeOrphanRecognizedText().catch(() => {}); migrateBooks().catch(() => {});
+      removeOrphanChunks().catch(() => {}); removeOrphanRecognizedText().catch(() => {}); migrateBooks().catch(() => 0).then(() => fingerprintBooks()).catch(() => {});
     } else {
       key = candidateKey; const initial = [{id:crypto.randomUUID(),name:'My collection'}];
       const created = {version:1,salt,check:await seal(encoder.encode('ThingsBook vault v1')),library:await sealJSON(initial),recovery:await seal(encoder.encode(password))};
@@ -218,7 +237,7 @@ async function upload(event) {
   event.preventDefault();if(busy)return;const files=[...$('book-files').files];if(!files.length)return;$('upload-error').textContent='';
   for(const file of files){const limit=file.size>MAX_FILE&&file.size<=MAX_PDF&&await isPdfFile(file)?MAX_PDF:MAX_FILE;if(!file.size||file.size>limit){$('upload-error').textContent=file.size>MAX_FILE&&await isPdfFile(file)?`${file.name}: choose a PDF under 500 MB.`:`${file.name}: choose a nonempty file under 100 MB (PDFs up to 500 MB).`;return;}}
   const details={title:$('book-title').value.trim(),author:$('book-author').value.trim(),rating:Number($('book-rating').value),color:$('book-color').value,shelfId:$('shelf-select').value};
-  const run={paused:false};importRun=run;busy=true;$('save-book').disabled=true;$('book-files').disabled=true;let saved=0,count=0,fallbackCount=0,remaining=[],failed=[],started=false;
+  const run={paused:false};importRun=run;busy=true;$('save-book').disabled=true;$('book-files').disabled=true;let saved=0,count=0,fallbackCount=0,remaining=[],failed=[],skipped=[],started=false;const allowCopies=!!$('import-duplicates')?.checked;
   try{
     if(!await confirmStorage(files.reduce((n,file)=>n+file.size,0),'import'))return;
     started=true;$('import-progress').hidden=false;$('import-progress').max=files.length;$('import-progress').value=0;$('pause-import').hidden=false;$('pause-import').disabled=false;$('pause-import').textContent='Pause after current book';
@@ -228,6 +247,10 @@ async function upload(event) {
       try{
         // PDFs are recognized from their first kilobyte and streamed: details are read by byte range and
         // pieces are encrypted straight from the file, so a large PDF is never held in memory whole.
+        // A book already in the library (same content, whatever its name) is skipped unless copies were asked for.
+        const fingerprint=typeof ThingsFingerprint!=='undefined'?await ThingsFingerprint.ofFile(file):null;
+        const twin=fingerprint&&!allowCopies&&books.find(b=>b.fingerprint===fingerprint);
+        if(twin){skipped.push({file,title:twin.title});continue;}
         const streamed=decoder.decode(new Uint8Array(await file.slice(0,1024).arrayBuffer())).includes('%PDF-');
         data=streamed?null:await file.arrayBuffer();let format=streamed?'PDF':window.ThingsImport?.format?window.ThingsImport.format(file.name,data):file.name.split('.').pop().toUpperCase();
         // Kindle books and Word documents are converted to EPUB once, here; the stored book is that EPUB.
@@ -242,7 +265,7 @@ async function upload(event) {
           catch {fallbackCount++;}
         }
         if(format==='PDF'&&window.ThingsImport){$('save-book').textContent=`Reading PDF details ${count} of ${files.length}…`;embedded=await window.ThingsImport.pdf(null,{source:{size:file.size,read:async(begin,end)=>new Uint8Array(await file.slice(begin,end).arrayBuffer())}});if(embedded.warnings.length)fallbackCount++;}
-        const meta = {id:crypto.randomUUID(),title:files.length === 1 && details.title ? details.title : embedded.title || window.SanctuaryCore?.title(file.name)||file.name.replace(/\.[^.]+$/,'').replace(/[_-]/g,' '),author:details.author || embedded.author || 'Unknown author',rating:details.rating,color:files.length > 1 ? palette[(books.length + count) % palette.length] : details.color,shelfId:details.shelfId,format,size:data ? data.byteLength : file.size,filename:storedName,...(sourceFormat?{sourceFormat,sourceFilename:file.name}:{}),added:Date.now(),status:'unread',notes:'',series:embedded.series||'',seriesNumber:embedded.seriesNumber||'',year:embedded.year||null,language:embedded.language||'',cover:embedded.cover||null,pages:embedded.pages||null};
+        const meta = {id:crypto.randomUUID(),title:files.length === 1 && details.title ? details.title : embedded.title || window.SanctuaryCore?.title(file.name)||file.name.replace(/\.[^.]+$/,'').replace(/[_-]/g,' '),author:details.author || embedded.author || 'Unknown author',rating:details.rating,color:files.length > 1 ? palette[(books.length + count) % palette.length] : details.color,shelfId:details.shelfId,format,size:data ? data.byteLength : file.size,filename:storedName,...(sourceFormat?{sourceFormat,sourceFilename:file.name}:{}),...(fingerprint?{fingerprint}:{}),added:Date.now(),status:'unread',notes:'',series:embedded.series||'',seriesNumber:embedded.seriesNumber||'',year:embedded.year||null,language:embedded.language||'',cover:embedded.cover||null,pages:embedded.pages||null};
         if(!shelves.some(s=>s.id===meta.shelfId)){if(!shelves.length)await saveShelves([{id:crypto.randomUUID(),name:'Imported Books'}]);meta.shelfId=shelves[0].id;}
         // Pieces first, one transaction each; the book record is written last, so a book only
         // appears once every piece is stored. A failure removes the pieces already written.
@@ -259,9 +282,10 @@ async function upload(event) {
       finally{if(data)new Uint8Array(data).fill(0);$('import-progress').value=count;}
     }
     remaining=[...failed.map(item=>item.file),...remaining];
-    $('import-status').textContent=`${saved} saved · ${failed.length} failed · ${remaining.length-failed.length} waiting`;
-    if(remaining.length){const retained=retainImportFiles(remaining);if(files.length>1)$('book-title').value='';fileSummary();$('upload-error').textContent=failed.length?failed.slice(0,10).map(item=>`${item.file.name}: ${item.message}`).join('\n')+(failed.length>10?`\nAnd ${failed.length-10} more failed files.`:'')+(retained?'\nOnly failed or waiting books remain selected. Saved books will not be imported again by Retry/Continue.':'\nChoose the failed or waiting files again; the file picker could not retain them.'):(retained?'':'Choose the waiting files again; the file picker could not retain them.');}
-    else{$('book-files').value='';$('upload-dialog').close();toast(`${saved} ${saved===1?'book has':'books have'} found a home.${fallbackCount?` Embedded details or covers were unavailable for ${fallbackCount}; you can edit their details.`:''}`);}
+    $('import-status').textContent=`${saved} saved · ${skipped.length?`${skipped.length} already in your library · `:''}${failed.length} failed · ${remaining.length-failed.length} waiting`;
+    const skippedNote=skipped.length?`Already in your library, not added again: ${skipped.slice(0,5).map(item=>`${item.file.name} (${item.title})`).join(', ')}${skipped.length>5?` and ${skipped.length-5} more`:''}. To keep a second copy, tick “Also import books already in my library”.`:'';
+    if(remaining.length){const retained=retainImportFiles(remaining);if(files.length>1)$('book-title').value='';fileSummary();$('upload-error').textContent=failed.length?failed.slice(0,10).map(item=>`${item.file.name}: ${item.message}`).join('\n')+(failed.length>10?`\nAnd ${failed.length-10} more failed files.`:'')+(skippedNote?`\n${skippedNote}`:'')+(retained?'\nOnly failed or waiting books remain selected. Saved books will not be imported again by Retry/Continue.':'\nChoose the failed or waiting files again; the file picker could not retain them.'):(retained?'':'Choose the waiting files again; the file picker could not retain them.');}
+    else{$('book-files').value='';$('upload-dialog').close();toast(`${saved||!skipped.length?`${saved} ${saved===1?'book has':'books have'} found a home. `:''}${skippedNote}${fallbackCount?` Embedded details or covers were unavailable for ${fallbackCount}; you can edit their details.`:''}`.trim());}
   }catch(error){$('upload-error').textContent=storageError(error)+' Earlier books in this batch remain saved.';}
   finally{importRun=null;busy=false;$('save-book').disabled=false;$('book-files').disabled=false;$('pause-import').hidden=true;$('save-book').textContent=remaining.length?(run.paused?'Continue remaining books →':'Retry remaining books →'):'Add to my library →';if(!started)$('import-status').textContent='';render();resetIdle();}
 }
