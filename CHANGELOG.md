@@ -9,6 +9,10 @@
   second copy. The check covers every byte but reads large PDFs 4 MiB at a time, never whole. Books
   saved earlier get their fingerprint in the background while the app is idle (except converted ones).
   Fingerprints are kept inside each book's encrypted details.
+- **Open with ThingsBook (Android).** ThingsBook appears in "Open with" and the share sheet for the book
+  formats it imports, so a book downloaded in the browser or received in a chat goes straight in. The
+  import dialog opens with the files chosen (after you unlock, if the library is locked), and nothing is
+  saved until you confirm. Each shared file is readable once, only by ThingsBook, for 30 minutes.
 
 ## 1.13.0 — 2026-10-26
 

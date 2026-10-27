@@ -27,6 +27,9 @@ public class MainActivity extends Activity {
 
   private ZLibraryProvider provider;
   private PersonalVoices personal;private boolean personalPicker,bundledVoicesChecked;
+  // Books opened with, or shared to, ThingsBook: one-time tickets the page fetches from /shared-file.
+  private static final class SharedFile{Uri uri;String name;long size;long expires;boolean listed;}
+  private final Map<String,SharedFile> shared=new LinkedHashMap<>();
   private final java.util.concurrent.ExecutorService providerWorker=java.util.concurrent.Executors.newSingleThreadExecutor();
   private ValueCallback<Uri[]> picker;
   private boolean closing;
@@ -52,6 +55,7 @@ public class MainActivity extends Activity {
     File[] old=getCacheDir().listFiles();
     if(old!=null)for(File f:old)if(f.getName().startsWith("thingsbook-"))f.delete();
     provider=new ZLibraryProvider(this);
+    receive(getIntent());
     web=new WebView(this);setContentView(web);
     personal=new PersonalVoices(this,(id,value,error)->runOnUiThread(()->{if(closing)return;try{if("pack-import".equals(id)){web.evaluateJavascript("window.nativePersonalPackResult && window.nativePersonalPackResult("+JSONObject.quote(error==null?"Private personal voices installed. Select one from Voice.":error)+")",null);}else{String result=new JSONObject().put(error==null?"value":"error",error==null?value:error).toString();web.evaluateJavascript("window.ThingsAndroidNeural && window.ThingsAndroidNeural.receive("+JSONObject.quote(id)+","+JSONObject.quote(result)+")",null);}}catch(Exception ignored){}}));
     web.setOnApplyWindowInsetsListener((v,insets)->{v.setPadding(insets.getSystemWindowInsetLeft(),insets.getSystemWindowInsetTop(),insets.getSystemWindowInsetRight(),insets.getSystemWindowInsetBottom());return insets;});
@@ -64,7 +68,7 @@ public class MainActivity extends Activity {
       @Override public WebResourceResponse shouldInterceptRequest(WebView w,WebResourceRequest r){
         Uri u=r.getUrl();
         if(!"https".equals(u.getScheme())||!"appassets.androidplatform.net".equals(u.getHost()))return blocked();
-        String path=u.getPath();if("/personal-audio".equals(path))return "GET".equals(r.getMethod())&&u.getQueryParameterNames().size()==1?personal.serve(u.getQueryParameter("ticket"),r.getRequestHeaders().get("Range")):blocked();if("/provider-file".equals(path))return "GET".equals(r.getMethod())&&u.getQueryParameterNames().size()==1?provider.download(u.getQueryParameter("ticket")):blocked();if("/catalog".equals(path))return "GET".equals(r.getMethod())?BookCatalog.fetch(u):blocked();if("/".equals(path))path="/index.html";
+        String path=u.getPath();if("/shared-file".equals(path))return "GET".equals(r.getMethod())&&u.getQueryParameterNames().size()==1?sharedFile(u.getQueryParameter("ticket")):blocked();if("/personal-audio".equals(path))return "GET".equals(r.getMethod())&&u.getQueryParameterNames().size()==1?personal.serve(u.getQueryParameter("ticket"),r.getRequestHeaders().get("Range")):blocked();if("/provider-file".equals(path))return "GET".equals(r.getMethod())&&u.getQueryParameterNames().size()==1?provider.download(u.getQueryParameter("ticket")):blocked();if("/catalog".equals(path))return "GET".equals(r.getMethod())?BookCatalog.fetch(u):blocked();if("/".equals(path))path="/index.html";
         if(path==null||path.contains("..")||path.contains("\\"))return blocked();
         if(!Arrays.asList("/index.html","/style.css","/app.js","/reader.js","/reader.css","/pdf.worker.mjs").contains(path)&&!path.startsWith("/vendor/")&&!path.startsWith("/cmaps/")&&!path.startsWith("/wasm/")&&!path.startsWith("/standard_fonts/"))return blocked();
         String mime=path.endsWith(".js")||path.endsWith(".mjs")?"text/javascript":path.endsWith(".css")?"text/css":path.endsWith(".wasm")?"application/wasm":path.endsWith(".html")?"text/html":"application/octet-stream";
@@ -85,6 +89,37 @@ public class MainActivity extends Activity {
     web.loadUrl(origin);
   }
   private WebResourceResponse blocked(){return new WebResourceResponse("text/plain","UTF-8",403,"Blocked",Collections.emptyMap(),new ByteArrayInputStream(new byte[0]));}
+  @Override protected void onNewIntent(Intent intent){super.onNewIntent(intent);receive(intent);}
+  // Accepts content:// files from VIEW ("Open with"), SEND and SEND_MULTIPLE (share sheet); at most 20, kept 30 minutes.
+  private void receive(Intent intent){
+    if(intent==null)return;String action=intent.getAction();List<Uri> uris=new ArrayList<>();
+    if(Intent.ACTION_VIEW.equals(action)&&intent.getData()!=null)uris.add(intent.getData());
+    else if(Intent.ACTION_SEND.equals(action)){Uri u=intent.getParcelableExtra(Intent.EXTRA_STREAM);if(u!=null)uris.add(u);else if(intent.hasExtra(Intent.EXTRA_TEXT))notice("ThingsBook imports shared files; this share contained only text.");}
+    else if(Intent.ACTION_SEND_MULTIPLE.equals(action)){ArrayList<Uri> list=intent.getParcelableArrayListExtra(Intent.EXTRA_STREAM);if(list!=null)uris.addAll(list);}
+    if(uris.isEmpty())return;
+    synchronized(shared){
+      long now=System.currentTimeMillis();shared.values().removeIf(f->f.expires<now);
+      for(Uri u:uris){
+        if(shared.size()>=20)break;if(u==null||!"content".equals(u.getScheme()))continue;
+        String name=null;long size=-1;
+        try(android.database.Cursor c=getContentResolver().query(u,new String[]{android.provider.OpenableColumns.DISPLAY_NAME,android.provider.OpenableColumns.SIZE},null,null,null)){if(c!=null&&c.moveToFirst()){int n=c.getColumnIndex(android.provider.OpenableColumns.DISPLAY_NAME),s=c.getColumnIndex(android.provider.OpenableColumns.SIZE);if(n>=0&&!c.isNull(n))name=c.getString(n);if(s>=0&&!c.isNull(s))size=c.getLong(s);}}catch(Exception ignored){}
+        if(name==null||name.trim().isEmpty())name="Shared book";
+        name=name.replaceAll("[\\\\/:*?\"<>|\\p{Cntrl}]","_").trim();
+        if(name.indexOf('.')<0){String ext=null;try{ext=android.webkit.MimeTypeMap.getSingleton().getExtensionFromMimeType(getContentResolver().getType(u));}catch(Exception ignored){}if(ext!=null&&ext.matches("[a-z0-9]{1,8}"))name=name+"."+ext;}
+        if(name.length()>200)name=name.substring(name.length()-200);
+        SharedFile f=new SharedFile();f.uri=u;f.name=name;f.size=size;f.expires=now+30*60*1000;shared.put(UUID.randomUUID().toString(),f);
+      }
+    }
+    setIntent(new Intent());
+    if(web!=null)web.post(()->{if(!closing)web.evaluateJavascript("window.nativeSharedFiles && window.nativeSharedFiles()",null);});
+  }
+  // Streams one shared file to the page, once; the ticket is removed when it is used.
+  private WebResourceResponse sharedFile(String ticket){
+    SharedFile f;synchronized(shared){f=ticket==null?null:shared.remove(ticket);}
+    if(f==null||f.expires<System.currentTimeMillis())return BookCatalog.response(404,"text/plain",new byte[0]);
+    try{InputStream in=getContentResolver().openInputStream(f.uri);if(in==null)throw new IOException();Map<String,String> h=new HashMap<>();h.put("Cache-Control","no-store");h.put("X-Content-Type-Options","nosniff");return new WebResourceResponse("application/octet-stream",null,200,"OK",h,in);}
+    catch(Exception e){return BookCatalog.response(410,"text/plain","The shared file could not be opened.".getBytes(java.nio.charset.StandardCharsets.UTF_8));}
+  }
   private void notice(String text){runOnUiThread(()->{if(!closing)web.evaluateJavascript("window.nativeNotice && window.nativeNotice("+JSONObject.quote(text)+")",null);});}
   @Override public void onBackPressed(){web.evaluateJavascript("window.nativeBack && window.nativeBack()",handled->{if(!"true".equals(handled))moveTaskToBack(true);});}
 
@@ -103,6 +138,8 @@ public class MainActivity extends Activity {
       try{JSONObject status=new JSONObject(personal.status());if(!status.optBoolean("supported")||status.optJSONArray("voices")==null||status.getJSONArray("voices").length()>0)return;}catch(Exception e){return;}
       InputStream input;try{input=getAssets().open("voices/personal-pack.zip");}catch(IOException missing){return;}
       notice("Installing the built-in private voices on this device. This can take a minute…");personal.install(input,"pack-import");}
+    // Files handed over by "Open with" or the share sheet, not yet given to the page.
+    @JavascriptInterface public String sharedFiles(){JSONArray list=new JSONArray();synchronized(shared){long now=System.currentTimeMillis();for(Map.Entry<String,SharedFile> e:shared.entrySet()){SharedFile f=e.getValue();if(f.expires<now||f.listed)continue;f.listed=true;try{list.put(new JSONObject().put("ticket",e.getKey()).put("name",f.name).put("size",f.size));}catch(Exception ignored){}}}return list.toString();}
     @JavascriptInterface public void choosePersonalPack(){runOnUiThread(()->{if(personalPicker)return;personalPicker=true;personal.stop(true);try{startActivityForResult(new Intent(Intent.ACTION_OPEN_DOCUMENT).addCategory(Intent.CATEGORY_OPENABLE).setType("*/*"),4);}catch(Exception e){personalPicker=false;notice("A private voice pack picker could not open.");}});}
 
     @JavascriptInterface public void cancelProvider(){provider.cancel();}
