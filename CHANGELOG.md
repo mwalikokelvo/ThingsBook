@@ -1,9 +1,12 @@
 # Changelog
 
-## Unreleased (after 1.12.5)
+## Unreleased
 
-Source changes merged into `main`; not yet packaged. Build the Windows EXE and Android APK with
-`work/build-apps.py`, then verify on both devices before distributing (see "Before releasing").
+## 1.13.0 — 2026-10-26
+
+Many more book formats (Kindle, Word, OpenDocument, FictionBook, comics, Markdown, web pages), PDFs up
+to 500 MB opened by byte range, saved OCR text, library search inside PDFs, and much faster, lighter
+storage and backups. Install over 1.12.5; your library is converted in the background.
 
 ### New
 - **Kindle books (MOBI, AZW3, combined MOBI)** import by being converted to EPUB once, at import.
