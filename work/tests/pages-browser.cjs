@@ -32,7 +32,7 @@ async function run(file, call) {
     return {ok:!errors.length, result, errors, blocked};
   } catch (error) {
     return {ok:false, error:String(error.message || error).split('\n')[0].slice(0, 300), blocked};
-  } finally { await context.close().catch(() => {}); fs.rmSync(profile, {recursive:true, force:true}); }
+  } finally { await context.close().catch(() => {}); require('./browser-helpers.cjs').cleanup(profile); }
 }
 
 async function main() {

@@ -76,4 +76,4 @@ async function main() {
   await context.close();
   console.log(report.map(line => `PASS ${line}`).join('\n'));
 }
-main().catch(e => { console.error(e); process.exitCode = 1; }).finally(() => { for (const proc of servers) proc.kill(); for (const file of cleanup) fs.rmSync(file, {force:true}); fs.rmSync(profile, {recursive:true, force:true}); setTimeout(() => process.exit(), 500).unref(); });
+main().catch(e => { console.error(e); process.exitCode = 1; }).finally(() => { for (const proc of servers) proc.kill(); for (const file of cleanup) require('./browser-helpers.cjs').cleanup(file); require('./browser-helpers.cjs').cleanup(profile); setTimeout(() => process.exit(), 500).unref(); });

@@ -89,4 +89,4 @@ async function main() {
   assert.deepEqual([...a.errors, ...b.errors], []);
   console.log(report.map(line => `PASS ${line}`).join('\n'));
 }
-main().catch(e => { console.error(e); process.exitCode = 1; }).finally(async () => { for (const c of contexts) await c.close().catch(() => {}); for (const proc of servers) proc.kill(); fs.rmSync(temp, {recursive:true, force:true}); setTimeout(() => process.exit(), 500).unref(); });
+main().catch(e => { console.error(e); process.exitCode = 1; }).finally(async () => { for (const c of contexts) await c.close().catch(() => {}); for (const proc of servers) proc.kill(); require('./browser-helpers.cjs').cleanup(temp); setTimeout(() => process.exit(), 500).unref(); });

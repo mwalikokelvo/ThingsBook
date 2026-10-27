@@ -50,4 +50,11 @@ function syntheticPdf(PAGES = 12, FILLER = 2.5 * 1024 * 1024, blank = []) {
   return Buffer.concat([...parts, Buffer.from(xref)]);
 }
 
-module.exports = {serve, stopAll, syntheticPdf};
+// Removes a test's temporary folder. On Windows, Chromium can hold a cache file for a moment after
+// closing (EBUSY), so removal retries briefly; a leftover temp folder never fails a test.
+function cleanup(dir) {
+  try { require('node:fs').rmSync(dir, {recursive:true, force:true, maxRetries:10, retryDelay:300}); }
+  catch (error) { console.error(`(left temporary folder ${dir}: ${error.code || error.message})`); }
+}
+
+module.exports = {serve, stopAll, syntheticPdf, cleanup};
