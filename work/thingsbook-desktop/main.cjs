@@ -20,7 +20,11 @@ const trusted=event=>event.sender===window?.webContents&&event.senderFrame===win
 const helper=()=>app.isPackaged?path.join(process.resourcesPath,'SpeechBridge.exe'):path.join(__dirname,'native','SpeechBridge.exe');
 function dropStreams(){for(const item of customStreams.values()){try{item.controller.error(new Error('Narration released'));}catch{}}customStreams.clear();}
 function cancelCustom(){customGeneration++;if(customWorker){customWorker.kill();customWorker=null;}customBuffer='';warmedVoices.clear();warming=null;for(const request of customPending.values()){clearTimeout(request.timer);request.reject(new Error('Narration cancelled'));}customPending.clear();dropStreams();}
-function cancelSpeech(release=true){customGeneration++;if(speechJob){speechJob.kill();speechJob=null;}if(release||[...customPending.values()].some(item=>item.mode!=='warm'))cancelCustom();else dropStreams();}
+// Stopping, pausing or turning a page cancels the passages in progress inside the worker, which keeps
+// its loaded model; restarting it cost 10-20 seconds before the next words. Only release (closing a
+// book, panic) or a broken worker ends the process.
+function softCancel(ids){if(!customWorker)return;try{customWorker.stdin.write(JSON.stringify(ids?{mode:'cancel',ids}:{mode:'cancel',upto:customSequence})+'\n');}catch{cancelCustom();return;}for(const [id,request] of customPending){if(request.mode==='warm'||(ids&&!ids.includes(id)))continue;customPending.delete(id);clearTimeout(request.timer);request.reject(new Error('Narration cancelled'));}}
+function cancelSpeech(release=true){customGeneration++;if(speechJob){speechJob.kill();speechJob=null;}if(release)cancelCustom();else{softCancel();dropStreams();}}
 async function customVoices(){
  try{
   const status=JSON.parse(await fs.readFile(path.join(voicePack,'ready.json'),'utf8'));
@@ -101,7 +105,7 @@ function configureIpc(){
  ipcMain.handle('thingsbook:custom-speech',(event,value)=>{if(!trusted(event)||!value||typeof value.text!=='string'||!value.text.trim()||value.text.length>4000||typeof value.voice!=='string'||!/^[a-z][a-z0-9-]{0,63}$/.test(value.voice)||!['prose','heading',undefined].includes(value.kind))throw new Error('Invalid narration request');return customSpeech(value.text,value.voice,value.kind);});
  ipcMain.handle('thingsbook:custom-stream',(event,value)=>{if(!trusted(event)||!value||typeof value.text!=='string'||!value.text.trim()||value.text.length>4000||typeof value.voice!=='string'||!/^[a-z][a-z0-9-]{0,63}$/.test(value.voice)||!['prose','heading',undefined].includes(value.kind))throw new Error('Invalid narration request');return customSpeech(value.text,value.voice,value.kind,'stream');});
  ipcMain.handle('thingsbook:warm-voice',(event,voice)=>{if(!trusted(event)||typeof voice!=='string'||!/^[a-z][a-z0-9-]{0,63}$/.test(voice))throw new Error('Invalid voice');return warmVoice(voice);});
- ipcMain.on('thingsbook:release-stream',(event,url)=>{if(!trusted(event)||typeof url!=='string'||!url.startsWith(ORIGIN+'/speech/audio/'))return;const token=url.slice((ORIGIN+'/speech/audio/').length),item=customStreams.get(token);if(!item)return;if(customPending.has(item.id))cancelCustom();else customStreams.delete(token);});
+ ipcMain.on('thingsbook:release-stream',(event,url)=>{if(!trusted(event)||typeof url!=='string'||!url.startsWith(ORIGIN+'/speech/audio/'))return;const token=url.slice((ORIGIN+'/speech/audio/').length),item=customStreams.get(token);if(!item)return;if(customPending.has(item.id))softCancel([item.id]);customStreams.delete(token);});
  ipcMain.handle('thingsbook:voices',async event=>{if(!trusted(event))throw new Error('Unavailable');if(!voicesCache){voicesCache=speechProcess('--voices').then(bytes=>JSON.parse(bytes.toString('utf8'))).catch(()=>{voicesCache=null;return [];});}return voicesCache;});
  ipcMain.handle('thingsbook:speech',async(event,value)=>{if(!trusted(event)||!value||typeof value.text!=='string'||value.text.length>4000||typeof value.voice!=='string'||value.voice.length>200)throw new Error('Invalid narration request');return new Uint8Array(await speechProcess('--synthesize',{text:value.text,voice:value.voice}));});
  ipcMain.on('thingsbook:stop-speech',(event,release)=>{if(trusted(event))cancelSpeech(release!==false);});

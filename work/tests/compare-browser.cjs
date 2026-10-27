@@ -35,7 +35,7 @@ async function main() {
 
   await page.evaluate(id => readBook(id), first);
   await until(page, () => ThingsReader.context()?.pdf?.numPages === 4);
-  await page.evaluate(() => [...document.querySelectorAll('.sanctuary-reader-tools button')].find(b => b.textContent === 'Compare').click());
+  await page.evaluate(() => [...document.querySelectorAll('#reader-dialog .study-tools button, #reader-dialog .sanctuary-reader-tools button')].find(b => b.textContent === 'Compare').click());
   await until(page, () => !document.querySelector('.comparison-pane').hidden && document.querySelector('[aria-label="Comparison book"]').options.length > 0);
   const offered = await page.evaluate(() => [...document.querySelector('[aria-label="Comparison book"]').options].map(o => o.textContent));
   assert(offered.includes('Second Atlas') && offered.includes('The Lantern Keeper'), `PDFs are offered for comparison: ${offered}`);

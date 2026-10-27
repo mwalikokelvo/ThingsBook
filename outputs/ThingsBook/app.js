@@ -88,6 +88,16 @@ async function migrateBooks() {
 }
 // Books saved before fingerprints existed get one in the background, so later imports can spot them.
 // Converted books (Kindle, Word, ...) store an EPUB, not the original file, so they cannot be matched.
+// Once per book: clean titles/authors imported before 1.14.1. Books whose details the reader edited
+// (or that were already tidied) are left alone.
+async function tidyBookDetails() {
+  if (!window.ThingsMetadata) return 0; let changed = 0;
+  for (const book of books.filter(b => !b.detailsTidied)) {
+    const tidy = ThingsMetadata.tidy({title:book.title,author:book.author});
+    if (tidy.title !== book.title || tidy.author !== book.author) { try { await updateBook(book.id,{title:tidy.title,author:tidy.author,detailsTidied:1}); changed++; } catch {} }
+  }
+  return changed;
+}
 async function fingerprintBooks() {
   if (typeof ThingsFingerprint === 'undefined') return 0;
   const run = migrationRun, vaultKey = key, pause = ms => new Promise(resolve => setTimeout(resolve,ms));
@@ -171,7 +181,7 @@ async function unlock(event) {
         tx.objectStore('settings').put(updated,'vault'); tx.objectStore('settings').put(remembered,'device-access');
       });
       pendingBackup = null; config = updated; key = candidateKey; shelves = decodedShelves; books = decodedBooks;
-      removeOrphanChunks().catch(() => {}); removeOrphanRecognizedText().catch(() => {}); migrateBooks().catch(() => 0).then(() => fingerprintBooks()).catch(() => {});
+      removeOrphanChunks().catch(() => {}); removeOrphanRecognizedText().catch(() => {}); migrateBooks().catch(() => 0).then(() => tidyBookDetails()).then(() => fingerprintBooks()).catch(() => {});
     } else {
       key = candidateKey; const initial = [{id:crypto.randomUUID(),name:'My collection'}];
       const created = {version:1,salt,check:await seal(encoder.encode('ThingsBook vault v1')),library:await sealJSON(initial),recovery:await seal(encoder.encode(password))};
@@ -190,9 +200,9 @@ function bookButton(book, index, grid) {
   button.style.setProperty('--book-color', /^#[0-9a-f]{6}$/i.test(book.color) ? book.color : '#31534a');
   button.style.animationDelay = `${Math.min(index * .04, .4)}s`;
   button.title = `${book.title} — ${book.author}`; button.setAttribute('aria-label',`Open ${book.title} by ${book.author}`);
-  if(cover&&/^data:image\/jpeg;base64,[A-Za-z0-9+/=]+$/.test(book.cover||'')){const image=el('img','custom-cover');image.src=book.cover;image.alt='';image.loading='lazy';image.decoding='async';button.append(image);}
+  if(cover&&/^data:image\/jpeg;base64,[A-Za-z0-9+/=]+$/.test(book.cover||'')){button.classList.add('has-cover');const image=el('img','custom-cover');image.src=book.cover;image.alt='';image.loading='lazy';image.decoding='async';button.append(image);}
   if (cover) button.append(el('span','book-format',book.format),el('span','book-ornament','✦'));
-  button.append(el('span','book-title',book.title),el('span','book-author',book.author));
+  button.append(el('span','book-title',book.title),el('span','book-author',book.author==='Unknown author'&&!cover?'':book.author));
   if (cover) button.append(el('span','book-rating',book.rating ? '★'.repeat(book.rating) : 'THINGSBOOK'));
   if (book.progress?.percent) { const bar = el('span','reading-progress'); const fill = el('i'); fill.style.width = Math.max(0,Math.min(100,book.progress.percent))+'%'; bar.append(fill); button.append(bar); }
   if (!cover) button.style.height = `${170 + (index % 4) * 10}px`;
@@ -266,6 +276,8 @@ async function upload(event) {
         }
         if(format==='PDF'&&window.ThingsImport){$('save-book').textContent=`Reading PDF details ${count} of ${files.length}…`;embedded=await window.ThingsImport.pdf(null,{source:{size:file.size,read:async(begin,end)=>new Uint8Array(await file.slice(begin,end).arrayBuffer())}});if(embedded.warnings.length)fallbackCount++;}
         const meta = {id:crypto.randomUUID(),title:files.length === 1 && details.title ? details.title : embedded.title || window.SanctuaryCore?.title(file.name)||file.name.replace(/\.[^.]+$/,'').replace(/[_-]/g,' '),author:details.author || embedded.author || 'Unknown author',rating:details.rating,color:files.length > 1 ? palette[(books.length + count) % palette.length] : details.color,shelfId:details.shelfId,format,size:data ? data.byteLength : file.size,filename:storedName,...(sourceFormat?{sourceFormat,sourceFilename:file.name}:{}),...(fingerprint?{fingerprint}:{}),added:Date.now(),status:'unread',notes:'',series:embedded.series||'',seriesNumber:embedded.seriesNumber||'',year:embedded.year||null,language:embedded.language||'',cover:embedded.cover||null,pages:embedded.pages||null};
+        // Download-site names such as "Title (Author)Publisher Year" become a clean title and author.
+        if(window.ThingsMetadata&&!(files.length===1&&details.title)){const tidy=ThingsMetadata.tidy({title:meta.title,author:meta.author});meta.title=tidy.title;meta.author=details.author||tidy.author;meta.detailsTidied=1;}
         if(!shelves.some(s=>s.id===meta.shelfId)){if(!shelves.length)await saveShelves([{id:crypto.randomUUID(),name:'Imported Books'}]);meta.shelfId=shelves[0].id;}
         // Pieces first, one transaction each; the book record is written last, so a book only
         // appears once every piece is stored. A failure removes the pieces already written.

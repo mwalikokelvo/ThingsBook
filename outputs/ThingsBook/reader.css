@@ -109,3 +109,27 @@ body.reader-active{overflow:hidden}
 #highlight-links-dialog select{width:100%;max-width:100%;margin:8px 0}
 .annotation-link-row{display:flex;align-items:center;gap:12px;margin:12px 0}.annotation-link-row button:first-child{flex:1;text-align:left;white-space:normal}
 @media(max-width:720px){#reader-dialog[data-layout=concurrent] .reader-split-view{grid-template-columns:minmax(0,1fr);grid-template-rows:minmax(150px,1fr) minmax(180px,1fr)}#reader-dialog[data-layout=concurrent] #reader-content{min-height:360px}}
+/* 1.14.1: footer above the floating bar, tools beside the page on wide screens, named controls */
+.visually-hidden{position:absolute!important;width:1px!important;height:1px!important;overflow:hidden!important;clip:rect(0 0 0 0)!important;white-space:nowrap!important;margin:-1px!important;padding:0!important;border:0!important}
+#reader-dialog.has-reader-dock>.reader-body,#reader-dialog.has-reader-dock[data-chrome=hidden]>.reader-body{margin-bottom:6px}
+#reader-dialog.has-reader-dock>.reader-footer{margin-bottom:var(--dock-clearance,92px)!important;padding:0 6px!important;gap:12px;justify-content:space-between;opacity:.9!important}
+.reader-message .reader-message-action{display:inline;padding:0 0 0 6px;font-size:inherit;font-weight:700;text-decoration:underline;color:var(--green,#315d4f);min-height:0}
+#reader-dialog.has-reader-dock>.reader-message:has(.reader-message-action){overflow:visible!important}
+.reader-dock-categories button[aria-pressed=false]{background:transparent;border-color:var(--dock-border);color:inherit;box-shadow:none}
+.reader-dock-categories button[aria-pressed=true]{background:#315d4f;color:#fff;border-color:#315d4f}
+.reader-dock .tool-label{display:block}
+.reader-dock .tool-value{font-size:11px;opacity:.75;font-variant-numeric:tabular-nums}
+.reader-dock label.wide-tool{grid-column:1/-1}
+.reader-dock .study-tools{display:flex;flex-wrap:wrap;gap:10px;padding:10px 0}
+.reader-dock .tool-file-name{font-size:12px;opacity:.75;align-self:center;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:220px}
+.reader-dock select option{background:#fff;color:#1f2a24}
+#reader-dialog[data-theme=dark] .reader-dock select option,#reader-dialog[data-theme=oled] .reader-dock select option{background:#202b25;color:#e8eade}
+.reader-dock .reader-dock-panel{max-height:42dvh}
+@media(min-width:1100px){
+ .reader-dock{left:0;right:0;margin-inline:auto;transform:none}
+ .reader-dock .reader-dock-panel{position:fixed;z-index:31;right:var(--panel-right,24px);top:118px;bottom:calc(var(--dock-clearance,92px) + 22px);width:400px;max-height:none;border:1px solid var(--dock-border);border-radius:20px;background:var(--dock-surface);box-shadow:0 12px 40px #172c2530;box-sizing:border-box}
+ .reader-dock .reader-dock-panel .display-options,.reader-dock .reader-dock-panel .reader-toolbar,.reader-dock .reader-dock-panel .narrator-bar{grid-template-columns:repeat(2,minmax(0,1fr))}
+ #reader-dialog:has(.reader-dock[data-expanded=true])>.reader-body{margin-right:414px}
+ .reader-dock .reader-dock-categories{flex-wrap:wrap}
+ .reader-dock .reader-dock-panel .reader-dock-categories button{padding:6px 9px;min-height:38px;font-size:12px}
+}

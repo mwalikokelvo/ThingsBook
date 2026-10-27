@@ -21,3 +21,12 @@
 
 .provider-login{display:grid;grid-template-columns:1fr 1fr auto;gap:10px;margin:16px 0}.provider-login input{min-width:0}.provider-login[hidden]{display:none}@media(max-width:720px){.provider-login{grid-template-columns:1fr}.provider-login button{width:100%}}
 .import-copies{display:flex;align-items:center;gap:8px;margin:10px 0 0;cursor:pointer}.import-copies input{width:auto;margin:0;accent-color:var(--green)}
+/* 1.14.1 */
+.book.has-cover>.book-format,.book.has-cover>.book-ornament,.book.has-cover>.book-title,.book.has-cover>.book-author,.book.has-cover>.book-rating{opacity:0!important;pointer-events:none}
+.book.has-cover .custom-cover{z-index:1;opacity:1}
+.book.has-cover .reading-progress{z-index:2}
+.sidebar .nav-item.study-link{background:transparent}
+#sort{min-width:150px}.tools select{min-width:112px;text-overflow:ellipsis}
+.spine .book-author:empty{display:none}
+.library-toolbar>div:first-child{flex:0 0 auto;min-width:210px}.library-toolbar .search{flex:1 1 180px;max-width:300px}
+.shelf-row{overflow-y:hidden;scrollbar-width:thin}
