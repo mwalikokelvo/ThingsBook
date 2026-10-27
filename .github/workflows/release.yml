@@ -26,6 +26,10 @@ on:
       version:
         description: Version to release; main must already carry it (for example 1.13.0)
         required: true
+      allow_without_apk:
+        description: Publish even if the Android signing secrets are missing (EXE only)
+        type: boolean
+        default: false
 
 permissions:
   contents: write
@@ -59,7 +63,10 @@ jobs:
           if ($version -ne $wanted) { throw "This commit carries version $version, not $wanted. Run work/set-version.py $wanted --release-notes and commit first." }
           if ($env:GITHUB_REF_TYPE -ne 'tag' -and (git tag --list "v$wanted")) { throw "v$wanted is already released." }
           "VERSION=$version" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
-          if ($env:HAS_KEYSTORE -ne 'true') { "::warning title=No Android signing key::The ANDROID_KEYSTORE_* secrets are not set; this release will have no APK." }
+          if ($env:HAS_KEYSTORE -ne 'true') {
+            if ('${{ github.event.inputs.allow_without_apk }}' -ne 'true') { throw 'The ANDROID_KEYSTORE_BASE64 / ANDROID_KEYSTORE_PASSWORD secrets are not set, so the APK cannot be signed. Nothing was published. Add them, or rerun with allow_without_apk.' }
+            "::warning title=No Android signing key::The ANDROID_KEYSTORE_* secrets are not set; this release will have no APK."
+          }
 
       - name: Browser test tools (Playwright and Chromium)
         run: |
