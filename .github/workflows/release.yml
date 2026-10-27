@@ -68,6 +68,8 @@ jobs:
           $version = (Get-Content work/thingsbook-desktop/package.json -Raw | ConvertFrom-Json).version
           $wanted = if ($env:VERSION) { $env:VERSION } else { $env:GITHUB_REF_NAME -replace '^v', '' }
           if ($version -ne $wanted) { throw "This commit carries version $version, not $wanted. Run work/set-version.py $wanted --release-notes and commit first." }
+          python work/set-version.py --check
+          if ($LASTEXITCODE -ne 0) { throw 'Version numbers disagree (see above); run python work/set-version.py --sync and commit.' }
           "VERSION=$version" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
           if ($env:WINDOWS_ONLY -eq 'true') {
             gh release view "v$wanted" --json tagName | Out-Null
