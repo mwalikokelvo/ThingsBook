@@ -6,7 +6,7 @@
 - **No more accidental duplicates.** A book that is already in your library (same content, whatever its
   file name) is not imported again; the import names the book it matches. Converted books (Kindle, Word,
   ...) are matched by their original file. Tick "Also import books already in my library" to keep a
-  second copy. Large PDFs are recognized from three small samples instead of being read whole. Books
+  second copy. The check covers every byte but reads large PDFs 4 MiB at a time, never whole. Books
   saved earlier get their fingerprint in the background while the app is idle (except converted ones).
   Fingerprints are kept inside each book's encrypted details.
 
