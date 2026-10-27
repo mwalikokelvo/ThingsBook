@@ -2,6 +2,29 @@
 
 ## Unreleased
 
+## 1.14.2 — 2026-10-27
+
+### Reading aloud with the screen off (Android)
+- **PDFs keep reading past the end of a page with the screen off.** Drawing a PDF page waited for the
+  screen to refresh, which never happens while it is off, so whole-book reading of a PDF stopped at
+  the first page turn. Pages are now drawn in one go when the app is not visible.
+- **"Keep reading in background" is on by default** and remembered, so reading aloud continues when the
+  screen turns off or you switch apps (the notification shows no book title). Turn it off in Voice to
+  close the library whenever you leave the app. Paused in the background for 15 minutes, ThingsBook
+  stops and closes the library as before.
+- While reading in the background the page keeps a high priority, so Android is less likely to end it
+  to free memory; if it still does, ThingsBook reopens locked instead of crashing.
+- The sleep timer is also checked at every passage, so it ends on time even when Android delays timers.
+
+### Reading
+- **Details** in the reader heading edits the book's title, author and other details without leaving
+  the book; the heading updates. Details you edit are never changed by the automatic tidy-up.
+- Chapter names come from the book's table of contents (EPUB 3 or EPUB 2) where it names the chapter;
+  reading order stays the book's own (its spine).
+- Places saved by 1.14.0 and earlier reopen at the same paragraph (1.14.1 counted long paragraphs
+  differently). Older whole-passage highlights inside a long paragraph mark only their own text.
+- A scanned PDF page also offers **Always recognize scanned pages**.
+
 ## 1.14.1 — 2026-10-27
 
 Fixes from reviewing a screen recording of 1.14.0 on Windows and two outside reports.

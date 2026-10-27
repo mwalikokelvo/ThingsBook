@@ -56,18 +56,43 @@ async function main() {
   assert(passages.every(p => /[.!?]$|Arrival$/.test(p.end)), `no passage ends mid-sentence: ${JSON.stringify(passages.map(p => p.end))}`);
   report.push('long book paragraphs stay whole (no mid-sentence splits) and keep their italics');
 
+  // Chapter names come from the book's table of contents.
+  assert.deepEqual(await page.evaluate(() => [...$('reader-location').options].map(o => o.textContent)), ['Arrival', 'Departure']);
+  // A place saved by 1.14.0, which split long paragraphs into several passages, opens at the same words:
+  // old passage 1 + (pieces of the first long paragraph) was "A short line.", now passage 2.
+  const firstLong = await page.evaluate(() => document.querySelectorAll('#reader-content .reader-passage')[1].textContent);
+  const oldPieces = text => { let count = 1, rest = text; while (rest.length > 650) { let stop = rest.lastIndexOf(' ', 650); if (stop < 200) stop = 650; rest = rest.slice(stop).trim(); if (rest) count++; } return count; };
+  await page.evaluate(() => closeReader());
+  await page.evaluate(([id, paragraph]) => updateBook(id, {progress:{location:0, paragraph, scroll:0}}), [epub, 1 + oldPieces(firstLong)]);
+  await open(epub);
+  assert.equal(await page.evaluate(() => ThingsReader.context().paragraph), 2, 'a 1.14.0 saved place maps to the same paragraph');
+  report.push('chapter names come from the table of contents, and a place saved by 1.14.0 reopens at the same paragraph');
+
+  // Details in the reader edits the book's title without leaving it.
+  await page.evaluate(() => $('reader-details').click());
+  await until(page, () => $('detail-dialog').open);
+  await page.evaluate(() => { const form = document.querySelector('#book-detail form'); form.querySelector('input').value = 'Harbour Days'; form.requestSubmit(); });
+  await until(page, () => !$('detail-dialog').open && $('reader-title').textContent === 'Harbour Days');
+  assert.equal(await page.evaluate(id => books.find(b => b.id === id).detailsTidied, epub), 1);
+  report.push('"Details" in the reader renames the book and the reader heading follows');
+
   // Read aloud starts at the screen being looked at.
   // Larger text, so the first long paragraph runs on from screen 1 onto screen 2.
   await page.evaluate(() => { $('reader-size').value = 26; $('reader-size').oninput(); $('reader-layout').value = 'paged'; $('reader-layout').onchange(); });
   await page.waitForTimeout(300);
-  await page.click('#reader-screen-next'); await until(page, () => $('reader-content').scrollLeft >= 1000 && !/^Screen 1 /.test($('reader-screen-status').textContent));
+  // Wait until the page turn has finished scrolling (two equal readings in a row).
+  await page.click('#reader-screen-next'); await until(page, () => { const left = $('reader-content').scrollLeft, same = window.__lastLeft === left; window.__lastLeft = left; return same && left >= 1000 && !/^Screen 1 /.test($('reader-screen-status').textContent); });
   const screen = await page.evaluate(() => $('reader-screen-status').textContent);
   assert(await page.evaluate(() => $('reader-content').scrollLeft > 0), 'the next screen is shown');
   assert.doesNotMatch(screen, /^Screen 1 /, 'the screen counter follows the page turn');
   await page.evaluate(() => { window.__speakMs = 400; window.__spoken = []; });
   await page.click('#narrator-play');
   await until(page, () => window.__spoken.length >= 1);
-  const firstOnScreen = await page.evaluate(() => { const spoken = window.__spoken[0].slice(0, 40), view = $('reader-content').getBoundingClientRect(); const walker = document.createTreeWalker($('reader-content'), NodeFilter.SHOW_TEXT); for (let t = walker.nextNode(); t; t = walker.nextNode()) { const at = t.data.indexOf(spoken); if (at >= 0) { const r = document.createRange(); r.setStart(t, at); r.setEnd(t, at + 1); const box = r.getClientRects()[0]; return !!box && box.left >= view.left - 2 && box.right <= view.right + 2; } } return false; });
+  // Where the first spoken words are: found in the passage text (they may span <em> and plain text).
+  const firstOnScreen = await page.evaluate(() => { const spoken = window.__spoken[0].slice(0, 40), view = $('reader-content').getBoundingClientRect();
+    for (const node of document.querySelectorAll('#reader-content .reader-passage')) { const at = node.textContent.indexOf(spoken); if (at < 0) continue; const walker = document.createTreeWalker(node, NodeFilter.SHOW_TEXT); let seen = 0;
+      for (let t = walker.nextNode(); t; t = walker.nextNode()) { if (seen + t.data.length > at) { const r = document.createRange(); r.setStart(t, at - seen); r.setEnd(t, at - seen + 1); const box = r.getClientRects()[0]; return !!box && box.left >= view.left - 2 && box.right <= view.right + 2; } seen += t.data.length; } }
+    return false; });
   assert(firstOnScreen, `Read aloud on ${screen} starts with words on that screen, not the saved place (first words: ${await page.evaluate(() => window.__spoken[0].slice(0, 60))})`);
   assert.notEqual(await page.evaluate(() => window.__spoken[0]), 'Arrival', 'not from the start of the chapter');
   report.push(`Read aloud on "${screen}" starts with words on that screen`);
@@ -108,9 +133,12 @@ async function main() {
   assert.match(await page.evaluate(() => $('reader-message').textContent), /blank/i);
   await page.evaluate(() => $('reader-previous').click());
   await until(page, () => ThingsReader.context().location === 0 && !ThingsReader.context().loading);
+  // With the screen off the page is hidden and gets no animation frames; reading must still turn pages.
+  await page.evaluate(() => { Object.defineProperty(document, 'hidden', {configurable:true, get:() => true}); window.requestAnimationFrame = () => 0; });
   await page.click('#narrator-play');
-  await until(page, () => window.__spoken.some(t => t.includes('marker-3')), null, 20000);
-  report.push('a blank PDF page says it is blank, and whole-book reading continues past it');
+  await until(page, () => window.__spoken.some(t => t.includes('marker-4')), null, 20000);
+  assert(await page.evaluate(() => window.__spoken.some(t => t.includes('marker-3'))));
+  report.push('a blank PDF page says it is blank, and whole-book reading continues past it, also with the screen off (no animation frames)');
   await page.evaluate(() => ThingsReader.stop());
 
   assert.deepEqual(errors, []);

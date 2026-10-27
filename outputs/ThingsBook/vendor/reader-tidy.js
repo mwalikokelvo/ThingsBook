@@ -20,6 +20,19 @@
   // the selected one.
   for (const button of document.querySelectorAll('.sidebar button.secondary')) { button.classList.remove('secondary'); button.classList.add('nav-item', 'study-link'); }
 
+  // "Details" in the reader heading edits this book's title, author and other details without leaving it.
+  const focus = document.getElementById('reader-focus');
+  if (focus && typeof showDetail === 'function') {
+    const details = make('button', 'secondary', 'Details'); details.type = 'button'; details.id = 'reader-details'; details.setAttribute('aria-label', 'Edit book details');
+    details.onclick = () => { const id = ThingsReader.context()?.id; if (id) showDetail(id, true); };
+    focus.before(details);
+    document.getElementById('detail-dialog')?.addEventListener('close', () => {
+      const book = typeof books !== 'undefined' && books.find(b => b.id === ThingsReader.context()?.id); if (!book) return;
+      document.getElementById('reader-title').textContent = book.title;
+      const eyebrow = dialog.querySelector('.dialog-heading .eyebrow'); if (eyebrow) eyebrow.textContent = [book.author && book.author !== 'Unknown author' ? book.author : '', book.format === 'PDF' ? 'PDF' : ''].filter(Boolean).join(' · ') || 'ONE MORE CHAPTER';
+    });
+  }
+
   // Names for controls that only had an accessible label.
   label(dialog.querySelector('input[aria-label="Narration passage"]'), 'Passage in this chapter', 'wide-tool');
   label(dialog.querySelector('select[aria-label="Ambient sound"]'), 'Ambient sound');

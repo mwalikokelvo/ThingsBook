@@ -84,6 +84,22 @@ const ReaderCore = {
     const opfPath = root?.getAttribute('full-path'); if (!opfPath || opfPath.split('/').includes('..')) throw new Error('The EPUB package is invalid.');
     const packageDoc = parser.parseFromString(decode(opfPath),'application/xml');
     const manifest = new Map(); for (const n of packageDoc.getElementsByTagName('*')) if (n.localName === 'item') manifest.set(n.getAttribute('id'),n);
+    // Chapter names come from the book's table of contents (EPUB 3 nav, else the EPUB 2 NCX) when it
+    // names that file; reading order is always the spine's, as the EPUB standard requires.
+    const tocTitles = new Map(), all = doc => [...doc.getElementsByTagName('*')];
+    try {
+      const navItem = [...manifest.values()].find(n => (n.getAttribute('properties') || '').split(/\s+/).includes('nav')), navPath = navItem && ReaderCore.cleanPath(opfPath,navItem.getAttribute('href') || '');
+      if (navPath && files[navPath]) {
+        const doc = parser.parseFromString(decode(navPath),'application/xhtml+xml'), navs = all(doc).filter(n => n.localName === 'nav');
+        const toc = navs.find(n => /\btoc\b/.test(n.getAttribute('epub:type') || n.getAttributeNS?.('http://www.idpf.org/2007/ops','type') || '')) || navs[0];
+        for (const a of toc ? all(toc).filter(n => n.localName === 'a') : []) { const target = ReaderCore.cleanPath(navPath,a.getAttribute('href') || ''), label = a.textContent.replace(/\s+/g,' ').trim(); if (target && label && !tocTitles.has(target)) tocTitles.set(target,label); }
+      }
+      const spine = all(packageDoc).find(n => n.localName === 'spine'), ncxItem = manifest.get(spine?.getAttribute('toc')) || [...manifest.values()].find(n => n.getAttribute('media-type') === 'application/x-dtbncx+xml'), ncxPath = !tocTitles.size && ncxItem && ReaderCore.cleanPath(opfPath,ncxItem.getAttribute('href') || '');
+      if (ncxPath && files[ncxPath]) for (const point of all(parser.parseFromString(decode(ncxPath),'application/xml')).filter(n => n.localName === 'navPoint')) {
+        const label = all(point).find(n => n.localName === 'text')?.textContent.replace(/\s+/g,' ').trim(), content = all(point).find(n => n.localName === 'content'), target = content && ReaderCore.cleanPath(ncxPath,content.getAttribute('src') || '');
+        if (target && label && !tocTitles.has(target)) tocTitles.set(target,label);
+      }
+    } catch {}
     const chapters = [];
     for (const n of packageDoc.getElementsByTagName('*')) if (n.localName === 'itemref') {
       const item = manifest.get(n.getAttribute('idref')); if (!item || n.getAttribute('linear') === 'no') continue;
@@ -94,7 +110,7 @@ const ReaderCore = {
       const body=bodyOf(html);if(!body)continue;
       const heading=[...body.getElementsByTagName('*')].find(node=>['h1','h2','h3'].includes(node.localName.toLowerCase()));
       const headTitle=[...html.getElementsByTagName('*')].find(node=>node.localName.toLowerCase()==='title');
-      const title=heading?.textContent.trim()||headTitle?.textContent.trim()||`Chapter ${chapters.length+1}`;
+      const title=tocTitles.get(path)||heading?.textContent.replace(/\s+/g,' ').trim()||headTitle?.textContent.trim()||`Chapter ${chapters.length+1}`;
       chapters.push({path,title:title.slice(0,160),html,body});
     }
     if (!chapters.length) throw new Error('No readable chapters were found. This EPUB may be protected or damaged.');
@@ -131,7 +147,7 @@ const ThingsReader = (() => {
   let session = null, epoch = 0, voiceOptions = [], voiceLoadEpoch = 0, speechEpoch = 0, utterance, audio, audioUrl, sleepTimer, fadeTimer, sleepDeadline=0, sleepTotal=0, fadeLevel=1;
   let playing = false, paused = false, speechController = null, completedSpeechEpoch = -1, selectionNarration = null, preparedNarration = null, preparedQueue=[], preparationEpoch=0;
   // An optional action (for example "Recognize this page") is offered right beside the message.
-  const say = (text, action) => { const host=q('reader-message');host.textContent = text; if(action&&typeof document.createElement==='function'&&host.append){const button=document.createElement('button');button.type='button';button.className='text-button reader-message-action';button.textContent=action.label;button.onclick=()=>action.run();host.append(' ',button);} };
+  const say = (text, action) => { const host=q('reader-message');host.textContent = text; if(action&&typeof document.createElement==='function'&&host.append)for(const item of [].concat(action)){const button=document.createElement('button');button.type='button';button.className='text-button reader-message-action';button.textContent=item.label;button.onclick=()=>item.run();host.append(' ',button);} };
   const spokenText = text => window.ThingsSpeechText?.spoken(text) ?? text;
   const listeningLevel=()=>window.ListeningCore?.level(q('narrator-volume')?.value,1)??1;
   // Short personal phrases start sooner; saved text offsets are remapped on resume.
@@ -156,7 +172,7 @@ const ThingsReader = (() => {
     const scrollHost=session.pdf&&q('reader-layout').value==='concurrent'?(session.pdfTranscript?.parentElement||q('reader-content')):q('reader-content');const count = session.count; let fraction = Math.max(0,Math.min(1,scrollHost[isPaged()?'scrollLeft':'scrollTop'] / Math.max(1,isPaged()?scrollHost.scrollWidth-scrollHost.clientWidth:scrollHost.scrollHeight-scrollHost.clientHeight)));
     const scrolled=fraction;if(playing)fraction=(session.paragraph/Math.max(1,passages().length));
     const percent = session.completed ? 100 : Math.min(100,Math.round(100 * (session.location + fraction) / count));
-    session.progress = {...session.progress,location:session.location,paragraph:session.paragraph,scroll:scrolled,percent,theme:q('reader-theme').value,fontSize:Number(q('reader-size').value),voice:q('narrator-voice').value,speed:Number(q('narrator-speed').value),layout:q('reader-layout').value,typeface:q('reader-typeface').value,lineHeight:Number(q('reader-spacing').value),follow:q('narrator-follow').checked,scope:q('narrator-scope').value,ocr:q('narrator-ocr').checked,sleep:Number(q('narrator-sleep').value),tracking:Number(q('reader-tracking').value),measure:Number(q('reader-measure').value),alignment:q('reader-alignment').value,volume:listeningLevel(),sleepFade:q('narrator-fade')?.checked!==false,updated:Date.now()};
+    session.progress = {...session.progress,passageScheme:2,location:session.location,paragraph:session.paragraph,scroll:scrolled,percent,theme:q('reader-theme').value,fontSize:Number(q('reader-size').value),voice:q('narrator-voice').value,speed:Number(q('narrator-speed').value),layout:q('reader-layout').value,typeface:q('reader-typeface').value,lineHeight:Number(q('reader-spacing').value),follow:q('narrator-follow').checked,scope:q('narrator-scope').value,ocr:q('narrator-ocr').checked,sleep:Number(q('narrator-sleep').value),tracking:Number(q('reader-tracking').value),measure:Number(q('reader-measure').value),alignment:q('reader-alignment').value,volume:listeningLevel(),sleepFade:q('narrator-fade')?.checked!==false,updated:Date.now()};
     q('reader-progress').textContent = `${session.pdf ? 'Page' : 'Chapter'} ${session.location + 1} of ${count} · ${percent}%`;
   }
   function scheduleSave() { if (!session || session.disposing || session.loading) return; progress(); clearTimeout(session.saveTimer); const current = session; q('reader-save-status').textContent = 'Saving your place…'; current.saveTimer = setTimeout(() => persist(current).catch(() => {}),500); }
@@ -215,7 +231,7 @@ const ThingsReader = (() => {
     const current = session; if (!current || current.disposing) return;
     window.ThingsOCR?.cancel();current.pdfCanvas=null;current.pdfTranscript=null;q('reader-ocr').hidden=!current.pdf;q('narrator-ocr-label').hidden=!current.pdf;q('reader-ocr').disabled=true;q('reader-ocr-cancel').hidden=true;
     const requestEpoch = ++epoch; current.loading=true;current.completed=restore && current.progress.percent===100;current.location = Math.max(0,Math.min(location,current.count-1));
-    const savedParagraph = restore ? current.progress.paragraph || 0 : 0, savedScroll = restore ? current.progress.scroll || 0 : 0;
+    let savedParagraph = restore ? current.progress.paragraph || 0 : 0;const savedScroll = restore ? current.progress.scroll || 0 : 0;
     current.paragraph = savedParagraph; q('reader-location').value = current.location;
     q('reader-previous').disabled = current.location === 0; q('reader-next').disabled = current.location === current.count-1;
     const staging=document.createElement('div'),previousUrls=current.urls.slice();let needsRecognition=false;q('reader-content').setAttribute('aria-busy','true');say('Opening your chapter…');
@@ -225,7 +241,9 @@ const ThingsReader = (() => {
       const base = page.getViewport({scale:1}); const scale = Math.min(2,1300/base.width,Math.sqrt(4500000/(base.width*base.height)));
       const viewport = page.getViewport({scale}), canvas = document.createElement('canvas'); canvas.className='pdf-canvas';canvas.width=Math.ceil(viewport.width);canvas.height=Math.ceil(viewport.height);canvas.setAttribute('aria-label',`Page ${current.location+1}`);staging.append(canvas);
       // A newer page load cancels this render; the cancellation is expected, so this load simply stops.
-      current.renderTask = page.render({canvasContext:canvas.getContext('2d'),viewport}); try { await current.renderTask.promise; } catch (error) { if (error?.name === 'RenderingCancelledException' || session !== current || requestEpoch !== epoch) return; throw error; } current.renderTask = null;
+      // Rendering for display waits for animation frames, which never come while the screen is off or the app
+      // is in the background; there the page is drawn in one go (print intent), so whole-book reading continues.
+      current.renderTask = page.render({canvasContext:canvas.getContext('2d'),viewport,...(document.hidden?{intent:'print'}:{})}); try { await current.renderTask.promise; } catch (error) { if (error?.name === 'RenderingCancelledException' || session !== current || requestEpoch !== epoch) return; throw error; } current.renderTask = null;
       const content = await page.getTextContent();page.cleanup?.(); if (session !== current || requestEpoch !== epoch) return;
       let text=ReaderCore.pdfText(content.items);current.blankPage=!text.trim()&&blankCanvas(canvas);
       const transcript=document.createElement('article');transcript.className='reading-article';const label=document.createElement('p');label.className='pdf-transcript-label';label.textContent='PAGE TEXT · SELECT, HIGHLIGHT OR LISTEN';const split=document.createElement('div'),visual=document.createElement('section'),textPane=document.createElement('section');split.className='reader-split-view';visual.className='reader-pane-visual';textPane.className='reader-pane-text';visual.setAttribute('aria-label','PDF page image');textPane.setAttribute('aria-label','Readable PDF text');visual.tabIndex=textPane.tabIndex=0;visual.append(canvas);textPane.append(label,transcript);split.append(visual,textPane);staging.replaceChildren(split);textPane.addEventListener('scroll',()=>{if(q('reader-layout').value==='concurrent'){scheduleSave();rememberVisiblePassage();}},{passive:true});
@@ -236,13 +254,13 @@ const ThingsReader = (() => {
       for (const p of ReaderCore.paragraphs(text)) { const node=document.createElement('p');node.textContent=p;transcript.append(node); } paragraphize(transcript);
       if(text.trim())say(q('reader-layout').value==='fitpage'?'PDF page ready. Read aloud reads the text of this page.':'PDF page ready. Narration uses the page text shown below.');
       else if(current.blankPage)say('This page appears to be blank.');
-      else say('This page is a scanned image. Use Recognize page to read it aloud.',{label:'Recognize this page',run:()=>{stop();recognizePage().catch(()=>{});}});
+      else say('This page is a scanned image. Use Recognize page to read it aloud.',[{label:'Recognize this page',run:()=>{stop();recognizePage().catch(()=>{});}},{label:'Always recognize scanned pages',run:()=>{q('narrator-ocr').checked=true;scheduleSave();stop();recognizePage().catch(()=>{});}}]);
       needsRecognition=!text.trim()&&!current.blankPage&&q('narrator-ocr').checked;
     } else {
       let host;
       if (current.epub) host=ReaderCore.safeChapter(current.epub.chapters[current.location],current.epub.files,current.urls);
       else { host=document.createElement('article');host.className='reading-article';for (const text of current.textChapters[current.location]) { const p=document.createElement('p');p.textContent=text;host.append(p); } }
-      paragraphize(host);staging.append(host);say('Your place is saved automatically. Tap a passage or select text to highlight it. Search finds text in this chapter or PDF page.');
+      const whole=paragraphize(host);if(restore&&current.epub&&current.progress.passageScheme!==2)savedParagraph=legacyPassage(whole,savedParagraph);staging.append(host);say('Your place is saved automatically. Tap a passage or select text to highlight it. Search finds text in this chapter or PDF page.');
     }
     if (session !== current || requestEpoch !== epoch) return;
     q('reader-content').replaceChildren(...staging.childNodes);q('reader-content').setAttribute('aria-busy','false');for(const url of previousUrls)URL.revokeObjectURL(url);current.urls=current.urls.filter(url=>!previousUrls.includes(url));if(!window.matchMedia?.('(prefers-reduced-motion: reduce)')?.matches)q('reader-content').animate?.([{opacity:.82},{opacity:1}],{duration:140,easing:'ease-out'});
@@ -253,6 +271,9 @@ const ThingsReader = (() => {
   }
   // A page with no text layer whose image is (almost) all one light colour is blank, not a scan.
   function blankCanvas(canvas){try{const w=64,h=Math.max(1,Math.round(64*canvas.height/Math.max(1,canvas.width))),small=document.createElement('canvas');small.width=w;small.height=h;const ctx=small.getContext('2d',{willReadFrequently:true});ctx.drawImage(canvas,0,0,w,h);const data=ctx.getImageData(0,0,w,h).data;let ink=0;for(let i=0;i<data.length;i+=4){if(data[i+3]>16&&(data[i]+data[i+1]+data[i+2])/3<225)ink++;}return ink/(w*h)<.003;}catch{return false;}}
+  // Before 1.14.1 book paragraphs over 650 characters were shown as several passages, and saved places
+  // count passages. Map an old passage number to the whole paragraph that now holds it.
+  function legacyPassage(nodes,index){let old=0;for(let i=0;i<nodes.length;i++){const text=nodes[i].textContent;let count=1;if(text.length>650){count=0;for(const part of text.replace(/\r\n?/g,'\n').split(/\n\s*\n/).map(t=>t.trim()).filter(Boolean)){let rest=part;count++;while(rest.length>650){let stop=rest.lastIndexOf(' ',650);if(stop<200)stop=650;rest=rest.slice(stop).trim();if(rest)count++;}}count=Math.max(1,count);}if(index<old+count)return i;old+=count;}return Math.max(0,nodes.length-1);}
   function isPaged(){return !!session&&!session.pdf&&['paged','spread'].includes(q('reader-layout').value);}
   async function recognizePage(automatic=false) {
     const current=session,location=current?.location,requestEpoch=epoch;
@@ -392,6 +413,7 @@ const ThingsReader = (() => {
   function clearSpeech(cancelGeneration=true) { captureListening();speechEpoch++; speechController?.abort();speechController=null;window.speechSynthesis?.cancel();window.ThingsBookAndroid?.stopSpeech?.();if(cancelGeneration){discardPrepared();personalBridge()?.stopSpeech(!!session?.disposing);}if(audio){audio.onended=null;audio.onerror=null;audio.ontimeupdate=null;audio.onloadedmetadata=null;audio.ondurationchange=null;audio.onplaying=null;audio.onwaiting=null;audio.onstalled=null;audio.pause();audio.removeAttribute('src');audio.load();audio=null;}releaseAudioUrl(audioUrl);audioUrl=null;utterance=null; }
   function stop() { if(playing&&session&&!session.disposing)say('Narration stopped. Your place is saved.');q('reader-dialog').dataset.narration='stopped';window.ThingsSanctuary?.narrationStopped();selectionNarration=null;window.ThingsOCR?.cancel();clearSpeech();playing=false;paused=false;clearTimeout(sleepTimer);if(typeof clearInterval==='function')clearInterval(fadeTimer);sleepDeadline=0;fadeLevel=1;window.ThingsSanctuary?.fadeAmbient?.(1);window.ThingsListening?.stateChanged();q('narrator-play').textContent='▶ Read aloud';passages().forEach(n=>n.classList.remove('speaking'));if(session)scheduleSave(); }
   async function nextPassage(expected) {
+    if(sleepDeadline&&Date.now()>=sleepDeadline&&playing){stop();window.ThingsSanctuary?.sleepFinished?.();say('Sleep timer finished. Your place is saved.');return;}
     if(!session||!playing||paused||expected!==speechEpoch||completedSpeechEpoch===expected)return;completedSpeechEpoch=expected;
     const chunks=narrationChunks(selectionNarration||passages()[session.paragraph]?.textContent||'');
     if((session.narrationChunk||0)+1<chunks.length){await speakCurrent((session.narrationChunk||0)+1);return;}
@@ -477,7 +499,7 @@ const ThingsReader = (() => {
   function locateMark(nodes,mark){const node=nodes[mark.paragraph],probe=String(mark.text||'').slice(0,80).trim();if(!probe||node?.textContent.includes(probe))return node;return nodes.find(n=>n.textContent.includes(probe))||node;}
   function markPassage(node,mark){if(!node)return;const text=node.textContent;
     if(Number.isInteger(mark.start)&&Number.isInteger(mark.end)&&mark.start>=0&&mark.end>mark.start&&mark.end<=text.length&&text.slice(mark.start,mark.end)===String(mark.text)){wrapSpan(node,mark.start,mark.end,mark.id);return;}
-    if(Number.isInteger(mark.start)&&mark.text){const at=text.indexOf(String(mark.text));if(at>=0){wrapSpan(node,at,at+String(mark.text).length,mark.id);return;}}
+    {const wanted=String(mark.text||'').trim();if(wanted&&wanted.length<text.trim().length){const at=text.indexOf(wanted);if(at>=0){wrapSpan(node,at,at+wanted.length,mark.id);return;}}}
     node.classList.add('saved-highlight');}
   function wrapSpan(node,start,end,id){const walker=document.createTreeWalker(node,NodeFilter.SHOW_TEXT);const pieces=[];let offset=0;
     for(let t=walker.nextNode();t;t=walker.nextNode()){const from=Math.max(start,offset),to=Math.min(end,offset+t.data.length);if(from<to)pieces.push([t,from-offset,to-offset]);offset+=t.data.length;if(offset>=end)break;}
