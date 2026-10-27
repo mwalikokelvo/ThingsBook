@@ -10,6 +10,15 @@ HOST, PORT = '127.0.0.1', 8765
 URL = f'http://{HOST}:{PORT}'
 
 class Handler(SimpleHTTPRequestHandler):
+    # Fixed types for everything the app serves. Python otherwise asks the operating system, and on
+    # Windows the registry often maps .js/.mjs to text/plain or nothing; with nosniff the browser then
+    # refuses the pdf.js worker and scripts, so PDFs never open.
+    extensions_map = {**SimpleHTTPRequestHandler.extensions_map,
+        '.html':'text/html', '.js':'text/javascript', '.mjs':'text/javascript', '.css':'text/css',
+        '.json':'application/json', '.wasm':'application/wasm', '.svg':'image/svg+xml', '.png':'image/png',
+        '.jpg':'image/jpeg', '.ico':'image/x-icon', '.ttf':'font/ttf', '.otf':'font/otf', '.woff':'font/woff',
+        '.woff2':'font/woff2', '.txt':'text/plain', '.md':'text/plain', '.bcmap':'application/octet-stream',
+        '.pfb':'application/octet-stream', '.gz':'application/gzip', '.traineddata':'application/octet-stream'}
     def allowed(self):
         route = urlsplit(self.path).path
         target = (ROOT / route.lstrip('/')).resolve()
