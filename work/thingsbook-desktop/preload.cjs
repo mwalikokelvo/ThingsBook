@@ -1,7 +1,7 @@
 'use strict';
 const {contextBridge,ipcRenderer}=require('electron');
 contextBridge.exposeInMainWorld('ThingsBookDesktop',{
- version:'1.14.2',
+ version:'1.14.3',
  providerRequest:value=>ipcRenderer.invoke('thingsbook:provider',value),
  cancelProvider:()=>ipcRenderer.send('thingsbook:provider-cancel'),
  protectAccess:secret=>ipcRenderer.invoke('thingsbook:protect-access',secret),
@@ -19,6 +19,7 @@ contextBridge.exposeInMainWorld('ThingsBookDesktop',{
  synthesize:(text,voice)=>ipcRenderer.invoke('thingsbook:speech',{text,voice}),
  panic:()=>ipcRenderer.send('thingsbook:panic'),
  stopSpeech:(release=true)=>ipcRenderer.send('thingsbook:stop-speech',release),
+ narrating:on=>ipcRenderer.send('thingsbook:narrating',on===true),
  onClose:handler=>ipcRenderer.on('thingsbook:request-close',()=>handler()),
  closeReady:()=>ipcRenderer.send('thingsbook:closed')
 });

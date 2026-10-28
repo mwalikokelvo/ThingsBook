@@ -11,10 +11,10 @@ using System.Threading;
 using System.Windows.Forms;
 [assembly:AssemblyTitle("ThingsBook Independent Desktop")]
 [assembly:AssemblyProduct("ThingsBook")]
-[assembly:AssemblyVersion("1.14.2.0")]
-[assembly:AssemblyFileVersion("1.14.2.0")]
+[assembly:AssemblyVersion("1.14.3.0")]
+[assembly:AssemblyFileVersion("1.14.3.0")]
 internal static class IndependentLauncher {
- const string Version="1.14.2";
+ const string Version="1.14.3";
  [STAThread] static void Main(){
   Application.EnableVisualStyles();Application.SetCompatibleTextRenderingDefault(false);
   string baseRoot=Environment.GetEnvironmentVariable("THINGSBOOK_TEST_RUNTIME");

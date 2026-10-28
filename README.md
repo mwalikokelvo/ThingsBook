@@ -4,7 +4,7 @@ ThingsBook is a private, local-first reading and listening app for Windows and A
 
 ## Current release
 
-The latest release is **ThingsBook 1.14.2**: the Windows EXE and the Android APK (signed with the original key, so it installs over earlier versions) are on the [GitHub Releases page](https://github.com/mwalikokelvo/ThingsBook/releases), with checksums; they are not committed to Git. `CHANGELOG.md` lists what changed in each version.
+The latest release is **ThingsBook 1.14.3**: the Windows EXE and the Android APK (signed with the original key, so it installs over earlier versions) are on the [GitHub Releases page](https://github.com/mwalikokelvo/ThingsBook/releases), with checksums; they are not committed to Git. `CHANGELOG.md` lists what changed in each version.
 
 Highlights include:
 

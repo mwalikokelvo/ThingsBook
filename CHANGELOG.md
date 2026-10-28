@@ -2,6 +2,21 @@
 
 ## Unreleased
 
+## 1.14.3 — 2026-10-27
+
+### Long listening with the screen off
+- **A PDF page that was being drawn when the screen turned off now opens.** Drawing for the screen
+  waits for the display, which never comes while it is off, so whole-book reading could stall at that
+  page until the screen was turned on again. The page is now drawn again in one go.
+- **Windows:** while reading aloud, the PC no longer suspends ThingsBook when the screen turns off or
+  the computer is idle (the quiet moments while the next words are prepared do not count as playing
+  audio), and a minimised window keeps full speed. Both end when reading stops or pauses.
+
+### Development
+- New `endurance-browser.cjs`: with the page hidden and no screen refreshes, whole-book reading goes
+  through all 40 chapters of an EPUB and all 60 pages of a PDF to the end, with memory, page size and
+  event listeners staying flat; and a page caught mid-drawing by the screen turning off still opens.
+
 ## 1.14.2 — 2026-10-27
 
 ### Reading aloud with the screen off (Android)

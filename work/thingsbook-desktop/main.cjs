@@ -1,5 +1,5 @@
 'use strict';
-const {app,BrowserWindow,protocol,ipcMain,dialog,Menu,safeStorage}=require('electron');
+const {app,BrowserWindow,protocol,ipcMain,dialog,Menu,safeStorage,powerSaveBlocker}=require('electron');
 const path=require('node:path'),fs=require('node:fs/promises'),fsSync=require('node:fs'),{spawn}=require('node:child_process');
 const {pathToFileURL}=require('node:url');
 const {randomUUID}=require('node:crypto');
@@ -24,6 +24,7 @@ function cancelCustom(){customGeneration++;if(customWorker){customWorker.kill();
 // its loaded model; restarting it cost 10-20 seconds before the next words. Only release (closing a
 // book, panic) or a broken worker ends the process.
 function softCancel(ids){if(!customWorker)return;try{customWorker.stdin.write(JSON.stringify(ids?{mode:'cancel',ids}:{mode:'cancel',upto:customSequence})+'\n');}catch{cancelCustom();return;}for(const [id,request] of customPending){if(request.mode==='warm'||(ids&&!ids.includes(id)))continue;customPending.delete(id);clearTimeout(request.timer);request.reject(new Error('Narration cancelled'));}}
+let awake=null;function keepAwake(on){if(on&&awake===null)awake=powerSaveBlocker.start('prevent-app-suspension');else if(!on&&awake!==null){try{powerSaveBlocker.stop(awake);}catch{}awake=null;}}
 function cancelSpeech(release=true){customGeneration++;if(speechJob){speechJob.kill();speechJob=null;}if(release)cancelCustom();else{softCancel();dropStreams();}}
 async function customVoices(){
  try{
@@ -109,6 +110,10 @@ function configureIpc(){
  ipcMain.handle('thingsbook:voices',async event=>{if(!trusted(event))throw new Error('Unavailable');if(!voicesCache){voicesCache=speechProcess('--voices').then(bytes=>JSON.parse(bytes.toString('utf8'))).catch(()=>{voicesCache=null;return [];});}return voicesCache;});
  ipcMain.handle('thingsbook:speech',async(event,value)=>{if(!trusted(event)||!value||typeof value.text!=='string'||value.text.length>4000||typeof value.voice!=='string'||value.voice.length>200)throw new Error('Invalid narration request');return new Uint8Array(await speechProcess('--synthesize',{text:value.text,voice:value.voice}));});
  ipcMain.on('thingsbook:stop-speech',(event,release)=>{if(trusted(event))cancelSpeech(release!==false);});
+ // While reading aloud, Windows must not suspend the app when the screen turns off or the PC is idle
+ // (silent moments while the next words are prepared do not count as playing audio), and a minimised
+ // window keeps full-speed timers. Both end as soon as reading stops or pauses.
+ ipcMain.on('thingsbook:narrating',(event,on)=>{if(!trusted(event))return;keepAwake(on===true);try{event.sender.setBackgroundThrottling(on!==true);}catch{}});
  ipcMain.on('thingsbook:closed',event=>{if(trusted(event)){closeAfterSave=true;window.close();}});
 }
 async function start(){
@@ -140,7 +145,7 @@ async function start(){
  window.webContents.on('will-attach-webview',event=>event.preventDefault());
  ses.on('will-download',(_event,item)=>{const name=path.basename(item.getFilename()).replace(/[<>:"/\\|?*]/g,'_');item.setSaveDialogOptions({defaultPath:path.join(app.getPath('downloads'),name)});});
  window.on('close',event=>{if(!closeAfterSave&&!quitting){event.preventDefault();window.webContents.send('thingsbook:request-close');}});
- window.on('closed',()=>{cancelSpeech();window=null;app.quit();});
+ window.on('closed',()=>{cancelSpeech();keepAwake(false);window=null;app.quit();});
  window.once('ready-to-show',()=>{if(!process.env.THINGSBOOK_TEST_HIDDEN)window.show();});
  await window.loadURL(ORIGIN+'/');
  if(!process.env.THINGSBOOK_SMOKE_RESULT)customVoices().then(voices=>voices[0]&&warmVoice(voices[0].id)).catch(()=>{});

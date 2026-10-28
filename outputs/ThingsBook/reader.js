@@ -243,7 +243,14 @@ const ThingsReader = (() => {
       // A newer page load cancels this render; the cancellation is expected, so this load simply stops.
       // Rendering for display waits for animation frames, which never come while the screen is off or the app
       // is in the background; there the page is drawn in one go (print intent), so whole-book reading continues.
-      current.renderTask = page.render({canvasContext:canvas.getContext('2d'),viewport,...(document.hidden?{intent:'print'}:{})}); try { await current.renderTask.promise; } catch (error) { if (error?.name === 'RenderingCancelledException' || session !== current || requestEpoch !== epoch) return; throw error; } current.renderTask = null;
+      // If the screen turns off while a page is being drawn for display, that drawing would wait until the
+      // screen is on again; it is cancelled and the page drawn again in one go.
+      for (;;) {
+        const print = !!document.hidden, task = page.render({canvasContext:canvas.getContext('2d'),viewport,...(print?{intent:'print'}:{})});current.renderTask = task;
+        const hidden = () => { if (document.hidden && !print) { task.redraw = true; task.cancel(); } };document.addEventListener('visibilitychange',hidden);
+        try { await task.promise; break; } catch (error) { if (task.redraw && session === current && requestEpoch === epoch) continue; if (error?.name === 'RenderingCancelledException' || session !== current || requestEpoch !== epoch) return; throw error; } finally { document.removeEventListener('visibilitychange',hidden); }
+      }
+      current.renderTask = null;
       const content = await page.getTextContent();page.cleanup?.(); if (session !== current || requestEpoch !== epoch) return;
       let text=ReaderCore.pdfText(content.items);current.blankPage=!text.trim()&&blankCanvas(canvas);
       const transcript=document.createElement('article');transcript.className='reading-article';const label=document.createElement('p');label.className='pdf-transcript-label';label.textContent='PAGE TEXT · SELECT, HIGHLIGHT OR LISTEN';const split=document.createElement('div'),visual=document.createElement('section'),textPane=document.createElement('section');split.className='reader-split-view';visual.className='reader-pane-visual';textPane.className='reader-pane-text';visual.setAttribute('aria-label','PDF page image');textPane.setAttribute('aria-label','Readable PDF text');visual.tabIndex=textPane.tabIndex=0;visual.append(canvas);textPane.append(label,transcript);split.append(visual,textPane);staging.replaceChildren(split);textPane.addEventListener('scroll',()=>{if(q('reader-layout').value==='concurrent'){scheduleSave();rememberVisiblePassage();}},{passive:true});
