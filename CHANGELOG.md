@@ -34,6 +34,13 @@
 - **Dialogs have names for screen readers:** the upload, shelf, protected-PDF, book-details and reader
   dialogs now announce a title when they open.
 
+- **Cite dialog includes the PDF page:** the page being read is passed to the citation, so BibTeX gets
+  `pages = {n}` and APA/MLA get "(p. n)" for PDFs (EPUB and text chapters have no page and are unchanged).
+- **Spoken ranges:** "200-2000" and "pages 300-1500" are read as ranges, not as a phone number; real phone
+  numbers (with an area code, or a normal 555-1234) are unchanged.
+- **Reader controls:** the Focus and Full screen buttons expose pressed/unpressed state, and the book text
+  area has a name for screen readers.
+
 ### Documentation
 - `README.md` project status and `Start-here.txt` described 1.12.5; both now describe 1.14.3.
 

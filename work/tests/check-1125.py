@@ -1,4 +1,4 @@
-"""Record relevant tests for the 1.12.5 source; no private profiles are used."""
+"""Record relevant tests for the current source (version read from package.json); no private profiles are used."""
 from pathlib import Path
 import hashlib
 import json
@@ -6,6 +6,7 @@ import subprocess
 import sys
 
 ROOT=Path(__file__).resolve().parents[2]
+VERSION=json.loads((ROOT/'work/thingsbook-desktop/package.json').read_text(encoding='utf-8'))['version']
 results=[]
 previous=None
 if '--failed' in sys.argv:
@@ -38,7 +39,7 @@ for command in commands:
     print(('PASS' if result.returncode==0 else 'FAIL')+': '+' '.join(command),flush=True)
     if result.returncode:
         print(result.stdout+result.stderr,flush=True)
-report={'version':'1.12.5','tests':results,'source_sha256':{str(path.relative_to(ROOT)):hashlib.sha256(path.read_bytes()).hexdigest() for path in (ROOT/'outputs/ThingsBook').rglob('*.js')}}
+report={'version':VERSION,'tests':results,'source_sha256':{str(path.relative_to(ROOT)):hashlib.sha256(path.read_bytes()).hexdigest() for path in (ROOT/'outputs/ThingsBook').rglob('*.js')}}
 if previous:report['prior_attempts']=previous.get('prior_attempts',[])+[previous['tests']]
 (ROOT/'work/tests/verification-1125.json').write_text(json.dumps(report,indent=2)+'\n',encoding='utf-8')
 if any(item['exit_code'] for item in results):raise SystemExit(1)

@@ -1,7 +1,9 @@
 'use strict';
 const ResearchCore={
  links(text){return [...new Set([...String(text||'').matchAll(/\[\[([^\]\n]{1,160})\]\]/g)].map(m=>m[1].trim()).filter(Boolean))];},
- cite(book,style){return window.ThingsCitation.format(book,style);},
+ cite(book,style,page=null){return window.ThingsCitation.format(book,style,page);},
+ // Only a PDF has real page numbers; an EPUB or text chapter has none, so no page is cited for those.
+ citePage(session){return session&&session.pdf&&Number.isInteger(session.location)&&session.location>=0?session.location+1:null;},
  hydrate(card){return {...card,due:new Date(card.due),last_review:card.last_review?new Date(card.last_review):undefined};}
 };
 window.ResearchCore=ResearchCore;
@@ -41,7 +43,7 @@ window.ThingsResearch=(()=>{
  function clearLinkDialog(){linkDialog.close();linkSummary.textContent='';linkRows.replaceChildren();linkBook.replaceChildren();linkTarget.replaceChildren();linkSource=null;}
  const footnote=el('aside','footnote-peek');footnote.hidden=true;footnote.setAttribute('role','note');const footText=el('p');footnote.append(button('Close note',()=>footnote.hidden=true),footText);reader.append(footnote);
  function peek(href,path){if(!current?.epub)return false;let plain;try{plain=decodeURIComponent(href.split('#')[1]||'');}catch{return false;}if(!plain)return false;const targetPath=href.startsWith('#')?path:ReaderCore.cleanPath(path,href);const chapter=current.epub.chapters.find(c=>c.path===targetPath);if(!chapter)return false;const target=[...chapter.body.querySelectorAll('[id]')].find(n=>n.id===plain);if(!target)return false;footText.textContent=target.textContent.trim().slice(0,12000);footnote.hidden=false;return true;}
- const choices=el('select');choices.setAttribute('aria-label','Citation style');for(const name of ['APA','Chicago','MLA','BibTeX']){const o=el('option','',name);o.value=name;choices.append(o);}const citation=panel('citation-dialog','Cite this book'),citeText=el('textarea');citeText.readOnly=true;citeText.setAttribute('aria-label','Generated citation');citation.append(el('p','','Citation draft from your saved metadata. Add publisher in book details and check names, edition and style before formal use.'),choices,citeText,button('Copy citation',()=>navigator.clipboard.writeText(citeText.value)));choices.onchange=()=>{citeText.value=ResearchCore.cite(book,choices.value);};tools.append(button('Cite',()=>{if(!book)return;citeText.value=ResearchCore.cite(book,choices.value);citation.showModal();}));
+ const choices=el('select');choices.setAttribute('aria-label','Citation style');for(const name of ['APA','Chicago','MLA','BibTeX']){const o=el('option','',name);o.value=name;choices.append(o);}const citation=panel('citation-dialog','Cite this book'),citeText=el('textarea');citeText.readOnly=true;citeText.setAttribute('aria-label','Generated citation');citation.append(el('p','','Citation draft from your saved metadata. Add publisher in book details and check names, edition and style before formal use.'),choices,citeText,button('Copy citation',()=>navigator.clipboard.writeText(citeText.value)));const draftCitation=()=>{citeText.value=ResearchCore.cite(book,choices.value,ResearchCore.citePage(current));};choices.onchange=draftCitation;tools.append(button('Cite',()=>{if(!book)return;draftCitation();citation.showModal();}));
  const pad=q('scratchpad').querySelector('textarea'),links=el('div','wiki-links');q('scratchpad').append(links);
  function renderLinks(){links.replaceChildren();if(!current)return;for(const name of ResearchCore.links(pad.value)){const matches=books.filter(b=>b.title.toLowerCase()===name.toLowerCase());links.append(button(name,async()=>{if(matches.length!==1)throw new Error(matches.length?'More than one book has that title; use Go anywhere.':'No book with this title is in your library yet.');await readBook(matches[0].id);}));}}
  pad.addEventListener('input',renderLinks);
