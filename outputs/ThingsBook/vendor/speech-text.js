@@ -50,7 +50,7 @@ window.ThingsSpeechText = (() => {
       return `the ${ordinal(d)} of ${monthName(month)}${yr ? ' ' + year(Number(yr)) : ''}`;
     });
     // Money and percentages.
-    text = text.replace(/\$(\d{1,3}(?:,\d{3})+|\d+)(?:\.(\d{2}))?\b/g, (all, whole, cents) => { const n = Number(whole.replace(/,/g, '')); return cardinal(n) + (n === 1 ? ' dollar' : ' dollars') + (cents && Number(cents) ? ' ' + cardinal(Number(cents)) + ' cents' : ''); });
+    text = text.replace(/\$(\d{1,3}(?:,\d{3})+|\d+)(?:\.(\d{1,2}))?\b/g, (all, whole, cents) => { const n = Number(whole.replace(/,/g, '')), c = cents ? Number(cents.length === 1 ? cents + '0' : cents) : 0; return cardinal(n) + (n === 1 ? ' dollar' : ' dollars') + (c ? ' ' + cardinal(c) + (c === 1 ? ' cent' : ' cents') : ''); });
     text = text.replace(/(\d)\s?%/g, '$1 percent');
     // Ordinals (21st), decades (1960s), ranges (11-15) and years.
     text = text.replace(/\b(\d+)(st|nd|rd|th)\b/g, (all, n) => ordinal(Number(n)));

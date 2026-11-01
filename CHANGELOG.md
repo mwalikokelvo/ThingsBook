@@ -2,6 +2,21 @@
 
 ## Unreleased
 
+### Fixes
+- **Citations:** MLA and Chicago drafts no longer end "n.d.." when the year is missing, and BibTeX
+  escapes `& % # _ $` in titles, authors and publishers so the entry compiles in LaTeX.
+- **Personal voices read cents correctly:** "$1,234.5" is "... dollars fifty cents" (it was read
+  "dollars.five") and "$0.01" is "one cent".
+- **Dialogs have names for screen readers:** the upload, shelf, protected-PDF, book-details and reader
+  dialogs now announce a title when they open.
+
+### Documentation
+- `README.md` project status and `Start-here.txt` described 1.12.5; both now describe 1.14.3.
+
+### Development
+- New `small-fixes.cjs` covers the three fixes above and checks that `index.html` has no duplicate ids
+  and that every dialog has an accessible name.
+
 ## 1.14.3 — 2026-10-27
 
 ### Long listening with the screen off

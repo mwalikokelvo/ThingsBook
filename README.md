@@ -28,7 +28,7 @@ No private books, backups, recordings, personal voice packs, model weights, acco
 - `work/vendor-foliate.py` — re-vendors foliate-js's MIT-licensed MOBI/KF8 and FB2 parsers (`vendor/foliate-mobi.js`, `vendor/foliate-fb2.js`), used to convert DRM-free Kindle and FictionBook books to EPUB on import.
 - `outputs/ThingsBook/vendor/mammoth.browser.min.js` — mammoth.js 1.13.0 (BSD-2-Clause, npm `mammoth`, sha256 `92914a3708cfdf1e62cb553d1856a7fedab21da83d8ee82845de2f897b368cab`), loaded only when a Word (.docx) book is imported and converted to EPUB.
 - `outputs/ThingsBook/vendor/marked.umd.js` — marked 18.0.14 (MIT, npm `marked`, sha256 `21568877a938d2c4e7d74e27f18e60da96bb73a68809610ca39216e1efebae62`), loaded only when a Markdown file is imported; license in `vendor/MARKED-LICENSE.txt`.
-- `Start-here.txt` — 1.12.5 release notes, limitations, and update guidance.
+- `Start-here.txt` — current release summary, limitations, and update guidance (`CHANGELOG.md` has the full history).
 
 ## Build
 
@@ -66,7 +66,7 @@ To build your private Android voices into the APK, add `--voice-pack "D:\path\to
 
 ## Project status
 
-Release 1.12.5 is a matched Windows/Android release, but the broader Unified v5 rebuild is still in progress. Native Android storage/search migration, sustained background/full-book endurance, semantic search, private sync, precise EPUB CFI annotations, and parts of the native-shell roadmap remain unfinished. See `Start-here.txt` for the current release boundary.
+Release 1.14.3 is the latest release (see `CHANGELOG.md`). Whole-book reading with the screen off is covered by `work/tests/endurance-browser.cjs`, but the broader Unified v5 rebuild is still in progress. Native Android storage/search migration, semantic search, private sync, precise EPUB CFI annotations, and parts of the native-shell roadmap remain unfinished. See `Start-here.txt` for the current release boundary.
 
 ## Privacy and security
 

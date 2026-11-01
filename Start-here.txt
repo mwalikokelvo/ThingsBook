@@ -1,51 +1,42 @@
-ThingsBook 1.12.5 — recovered Llama update
+ThingsBook 1.14.3 - start here
 
-Windows: ThingsBook-Independent-1.12.5.exe
-Android: ThingsBook-Android-1.12.5.apk
-Update Android over the existing installation; do not uninstall or clear app data.
-Keep the existing private voice pack. The original Android signing key is retained.
+Windows: ThingsBook-Independent-1.14.3.exe
+Android: ThingsBook-Android-1.14.3.apk
+Both are on the GitHub Releases page with checksums. Update Android over the existing
+installation; do not uninstall or clear app data, because that removes the private on-device
+library. Keep your existing private voice pack. The APK is signed with the original key.
+Full history of every version: CHANGELOG.md.
 
-This release repairs the partially applied Llama edits, including the app startup
-syntax error, overwritten research tools and broken PDF split view. The partial
-sources were preserved locally before recovery; 1.12.4 release files are retained.
+What 1.14.3 adds (details in CHANGELOG.md):
+- Long listening with the screen off: a PDF page that was being drawn when the screen turned off
+  now opens, and on Windows the PC no longer suspends ThingsBook while reading aloud.
+- 1.14.2: PDFs keep reading past a page end with the screen off (Android); "Keep reading in
+  background" is on by default (turn it off in Voice); Details in the reader heading edits a
+  book's title and author; chapter names come from the table of contents.
+- 1.14.1: turning the page no longer stops reading aloud; personal voices start faster after the
+  first time (Windows) and say dates and numbers as words; cleaner PDF text; clean titles and
+  authors in the library; a Study tab and a side panel for Tools on wide screens.
+- 1.14.0: books already in the library are not imported twice; RTF import; Open with ThingsBook on
+  Android.
+- 1.13.0: Kindle (MOBI/AZW3), Word, OpenDocument, FictionBook, comic (.cbz), Markdown and
+  web-page import; PDFs up to 500 MB (other formats 100 MB); library search covers PDF text;
+  recognized scan text is kept; faster, lighter storage and backups.
 
-New and recovered features:
-- Appearance > Layout > PDF · page + text shows the rendered page and readable
-  transcript together. Desktop uses two columns; narrow screens stack the panes.
-  The transcript scroll position is saved. Scanned pages still need local OCR.
-- Notes > a saved highlight > Links opens a book/highlight picker. Links show in
-  both directions, can jump to the saved passage, and can be removed. They stay
-  in encrypted book metadata and travel in the existing encrypted backup format.
-- Add Publisher in book details, then use Cite for APA/MLA/Chicago/BibTeX drafts.
-  Check names, edition and formatting before academic use; this is not a complete
-  formal citation engine.
-- Import checks PDF/EPUB contents before relying on a filename extension, helping
-  with renamed books. Manual title/author choices and import retry are retained.
-- Existing flashcards/FSRS, footnote previews, comparison tools, personal fonts,
-  shelf finishes and privacy controls are restored and retained.
+Updating from 1.12.5 or earlier: your library is converted in the background. Going back to
+1.12.5 afterwards does not open books stored as pieces, and 1.12.5 cannot restore version 2
+backups. Update every device before moving a library.
 
-The 100 MB per-book limit remains. Raising it to 500 MB without streaming would
-increase memory pressure, especially on Android. MOBI/AZW/DOCX and DRM decryption
-were not added. A malformed or protected book can still require a usable original.
+Limits: DRM-protected books are refused, never decrypted. Legacy .doc and password-protected
+documents need a usable copy saved first. A malformed or protected book can still require a usable
+original. Scan clarity affects OCR accuracy and recognition delay. Android saves at most 1 GB per
+export, which also caps backup size there.
 
-Matching EXE/APK packaging, host regressions and Windows runtime checks are listed
-in ThingsBook-1.12.5-Verification.json. Physical Android 1.12.5 testing is pending
-unless that report explicitly records a current APK-hash-bound device result.
-Earlier 1.12.4 Omnibus and 1.12.3 native-voice checks are historical evidence.
+Not finished: native Android UI/storage/search migration, semantic search, private sync, precise
+EPUB CFI annotations, human voice review, and the remaining Unified v5 requirements.
 
-The Omnibus no-sweep guard, local English OCR, personal-voice continuation and
-completed-phrase resume repairs remain. Scan clarity affects OCR accuracy and
-recognition delay. Full-book/background endurance, human voice review, native
-Android UI/storage/FTS migration, semantic search, private sync and the remaining
-Unified v5 requirements are unfinished.
+Verification: the portable regression suite (node work/run-tests.cjs) and the Rust core tests can be run on any computer (CI may be unavailable). This file does not claim physical-device or installed-release acceptance; check the GitHub
+release notes for what was verified on a given build.
 
-Building from this workspace after verified source changes:
-  C:\Python314\python.exe work/build-apps.py windows
-  C:\Python314\python.exe work/build-apps.py android
-Run from the project root after setting a consistent new release version and
-passing the relevant checks. Historical npm electron-builder settings are not the
-maintained independent EXE packaging path. Do not overwrite verified releases.
-
-Old-release deletion remains pending after an earlier command-policy rejection.
-No private libraries, recordings, voice models, backups or signing material were
-removed by this recovery.
+Building from source: see "Build" and "Making a release" in README.md. Do not overwrite verified
+releases. No private libraries, recordings, voice models, backups or signing material are in this
+repository.
