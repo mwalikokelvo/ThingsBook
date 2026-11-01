@@ -15,6 +15,29 @@ let hasDeviceAccess = false;
 const palette = ['#31534a','#71564d','#8b754c','#5a637b','#747f59','#765668'];
 function el(tag, className, text) { const node = document.createElement(tag); if (className) node.className = className; if (text !== undefined) node.textContent = text; return node; }
 function toast(message) { $('toast').textContent = message; $('toast').classList.add('visible'); clearTimeout(toast.timer); toast.timer = setTimeout(() => $('toast').classList.remove('visible'), 5000); }
+// error-guard:start
+// Last-resort handler: an error nobody caught shows one short, generic toast instead of failing silently.
+// Known harmless cases (a PDF page drawing that was cancelled on purpose, browser layout notices, aborted
+// requests) are ignored. The toast never shows the error text, which could contain book content.
+const BENIGN_ERROR_NAMES = new Set(['RenderingCancelledException', 'AbortException', 'AbortError']);
+const BENIGN_ERROR_TEXT = /rendering cancelled|transport destroyed|worker was terminated|ResizeObserver loop|the operation was aborted/i;
+function isBenignError(reason) {
+  if (reason == null) return true;
+  const name = typeof reason === 'object' ? String(reason.name || '') : '', message = typeof reason === 'object' ? String(reason.message || '') : String(reason);
+  return BENIGN_ERROR_NAMES.has(name) || BENIGN_ERROR_TEXT.test(message);
+}
+let lastErrorToast = 0;
+function reportUnexpectedError(reason) {
+  if (isBenignError(reason)) return;
+  try { console.error(reason); } catch {}
+  const now = Date.now(); if (now - lastErrorToast < 10000) return; lastErrorToast = now;
+  toast('Something went wrong. Your library is safe; if this keeps happening, lock and unlock ThingsBook or restart it.');
+}
+if (typeof window.addEventListener === 'function') {
+  window.addEventListener('unhandledrejection', e => reportUnexpectedError(e.reason));
+  window.addEventListener('error', e => { if (e.target && e.target !== window) return; reportUnexpectedError(e.error || e.message); });
+}
+// error-guard:end
 function size(bytes) { return bytes < 1024 ? `${bytes} B` : bytes < 1048576 ? `${(bytes / 1024).toFixed(1)} KB` : `${(bytes / 1048576).toFixed(1)} MB`; }
 function b64(buffer) { const bytes = new Uint8Array(buffer); let s = ''; for (let i = 0; i < bytes.length; i += 32768) s += String.fromCharCode(...bytes.subarray(i, i + 32768)); return btoa(s); }
 function unb64(text) { const s = atob(text), result = new Uint8Array(s.length); for (let i = 0; i < s.length; i++) result[i] = s.charCodeAt(i); return result; }
