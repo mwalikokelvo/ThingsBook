@@ -57,7 +57,12 @@ window.ThingsSpeechText = (() => {
     const fractions = {'1/2':'one half','1/3':'one third','2/3':'two thirds','1/4':'one quarter','3/4':'three quarters'};
     text = text.replace(/(?<![\d/.,])(?:(\d+)\s+)?([1-3]\/[2-4])(?![\d/])/g, (all, whole, frac) => fractions[frac] ? (whole ? whole + ' and ' + (frac === '1/2' ? 'a half' : fractions[frac]) : fractions[frac]) : all);
     // Phone numbers: "555-1234" and "(555) 123-4567" are read digit by digit, not as a range.
-    text = text.replace(/(?<![\d-])(?:\(?([2-9]\d\d)\)?[-. ]\s?)?([2-9]\d\d)-(\d{4})(?![\d-])/g, (all, area, exch, line) => [area, exch, line].filter(Boolean).map(g => [...g].map(d => ones[Number(d)]).join(' ')).join(', '));
+    // Without an area code the shape is also a range ("200-2000", "pages 300-1500"), so a round-number pair or a
+    // preceding page/chapter/year word keeps it a range.
+    text = text.replace(/(?<![\d-])(?:\(?([2-9]\d\d)\)?[-. ]\s?)?([2-9]\d\d)-(\d{4})(?![\d-])/g, (all, area, exch, line, offset, whole) => {
+      if (!area && ((/00$/.test(exch) && /0$/.test(line)) || /\b(?:pages?|pp?\.|chapters?|ch\.|verses?|years?)\s*$/i.test(whole.slice(0, offset)))) return all;
+      return [area, exch, line].filter(Boolean).map(g => [...g].map(d => ones[Number(d)]).join(' ')).join(', ');
+    });
     text = text.replace(/\b(\d+)(st|nd|rd|th)\b/g, (all, n) => ordinal(Number(n)));
     text = text.replace(/\b(1[1-9]|20)(\d0)s\b/g, (all, c, d) => { const w = year(Number(c + d)); return w.endsWith('y') ? w.slice(0, -1) + 'ies' : w + 's'; });
     text = text.replace(/\b(\d+)\s?[–-]\s?(\d+)\b/g, (all, a, b) => `${a} to ${b}`);

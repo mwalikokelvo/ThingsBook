@@ -5,6 +5,14 @@ vm.runInContext(fs.readFileSync('outputs/ThingsBook/vendor/research.js','utf8').
 const core=sandbox.window.ResearchCore;
 assert.equal(JSON.stringify(core.links('Study [[First book]] and [[Second book]]. [[First book]]')),JSON.stringify(['First book','Second book']));
 const cite=core.cite({id:'b1',title:'A title',author:'A writer',year:2020},'BibTeX');assert(cite.includes('title = {A title}'));assert(cite.includes('year = {2020}'));
+// The Cite dialog passes the current PDF page; EPUB/text chapters have no page.
+assert.equal(core.citePage({pdf:true,location:11}),12);assert.equal(core.citePage({pdf:true,location:0}),1);
+assert.equal(core.citePage({pdf:false,location:3}),null);assert.equal(core.citePage(null),null);assert.equal(core.citePage({pdf:true}),null);
+assert(core.cite({id:'b1',title:'A title',author:'A writer',year:2020},'BibTeX',core.citePage({pdf:true,location:11})).includes('pages = {12}'));
+assert(core.cite({id:'b1',title:'A title',author:'A writer',year:2020},'APA',12).endsWith('(p. 12).'));
+assert(!core.cite({id:'b1',title:'A title',author:'A writer',year:2020},'BibTeX',core.citePage({pdf:false,location:3})).includes('pages ='));
+const researchSrc=fs.readFileSync('outputs/ThingsBook/vendor/research.js','utf8');
+assert(researchSrc.includes('ResearchCore.cite(book,choices.value,ResearchCore.citePage(current))'),'the Cite dialog passes the current page');
 const scheduler=require('../../outputs/ThingsBook/vendor/fsrs.js');const now=new Date('2026-10-06T12:00:00Z');
 const card=scheduler.createEmptyCard(now),f=scheduler.fsrs({enable_fuzz:false});
 const first=f.repeat(card,now)[scheduler.Rating.Good].card;
