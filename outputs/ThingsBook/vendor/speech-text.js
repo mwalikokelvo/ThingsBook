@@ -32,7 +32,7 @@ window.ThingsSpeechText = (() => {
   const months = 'January|February|March|April|May|June|July|August|September|October|November|December|Jan\\.|Feb\\.|Mar\\.|Apr\\.|Jun\\.|Jul\\.|Aug\\.|Sept?\\.|Oct\\.|Nov\\.|Dec\\.';
   const fullMonth = {jan:'January',feb:'February',mar:'March',apr:'April',jun:'June',jul:'July',aug:'August',sep:'September',sept:'September',oct:'October',nov:'November',dec:'December'};
   const monthName = m => fullMonth[m.replace('.', '').toLowerCase()] || m;
-  const titles = [[/\bDr\.(?=\s+[A-Z])/g,'Doctor'],[/\bMrs\.(?=\s+[A-Z])/g,'Missus'],[/\bMr\.(?=\s+[A-Z])/g,'Mister'],[/\bMs\.(?=\s+[A-Z])/g,'Miz'],[/\bProf\.(?=\s+[A-Z])/g,'Professor'],[/\bRev\.(?=\s+[A-Z])/g,'Reverend'],[/\bFr\.(?=\s+[A-Z])/g,'Father'],[/\bSt\.(?=\s+[A-Z])/g,'Saint'],[/\bMt\.(?=\s+[A-Z])/g,'Mount'],[/\bJr\./g,'Junior']];
+  const titles = [[/\bDr\.(?=\s+(?:[A-Z\"“‘'(]|(?:and|or)\s+(?:Dr|Mrs|Mr|Ms|Prof|Doctor|Missus|Mister|Miz|Professor)\.?|&))/g,'Doctor'],[/\bMrs\.(?=\s+(?:[A-Z\"“‘'(]|(?:and|or)\s+(?:Dr|Mrs|Mr|Ms|Prof|Doctor|Missus|Mister|Miz|Professor)\.?|&))/g,'Missus'],[/\bMr\.(?=\s+(?:[A-Z\"“‘'(]|(?:and|or)\s+(?:Dr|Mrs|Mr|Ms|Prof|Doctor|Missus|Mister|Miz|Professor)\.?|&))/g,'Mister'],[/\bMs\.(?=\s+(?:[A-Z\"“‘'(]|(?:and|or)\s+(?:Dr|Mrs|Mr|Ms|Prof|Doctor|Missus|Mister|Miz|Professor)\.?|&))/g,'Miz'],[/\bProf\.(?=\s+[A-Z])/g,'Professor'],[/\bRev\.(?=\s+[A-Z])/g,'Reverend'],[/\bFr\.(?=\s+[A-Z])/g,'Father'],[/\bSt\.(?=\s+[A-Z])/g,'Saint'],[/\bMt\.(?=\s+[A-Z])/g,'Mount'],[/\bJr\./g,'Junior']];
   function spoken(input) {
     let text = String(input ?? '');
     if (!/[0-9&%$.]/.test(text)) return text;
@@ -53,6 +53,11 @@ window.ThingsSpeechText = (() => {
     text = text.replace(/\$(\d{1,3}(?:,\d{3})+|\d+)(?:\.(\d{1,2}))?\b/g, (all, whole, cents) => { const n = Number(whole.replace(/,/g, '')), c = cents ? Number(cents.length === 1 ? cents + '0' : cents) : 0; return cardinal(n) + (n === 1 ? ' dollar' : ' dollars') + (c ? ' ' + cardinal(c) + (c === 1 ? ' cent' : ' cents') : ''); });
     text = text.replace(/(\d)\s?%/g, '$1 percent');
     // Ordinals (21st), decades (1960s), ranges (11-15) and years.
+    // Fractions: "1/2" -> "one half", "2 1/2" -> "2 and a half"; a date such as 1/2/2020 or a number like 11/2 is left alone.
+    const fractions = {'1/2':'one half','1/3':'one third','2/3':'two thirds','1/4':'one quarter','3/4':'three quarters'};
+    text = text.replace(/(?<![\d/.,])(?:(\d+)\s+)?([1-3]\/[2-4])(?![\d/])/g, (all, whole, frac) => fractions[frac] ? (whole ? whole + ' and ' + (frac === '1/2' ? 'a half' : fractions[frac]) : fractions[frac]) : all);
+    // Phone numbers: "555-1234" and "(555) 123-4567" are read digit by digit, not as a range.
+    text = text.replace(/(?<![\d-])(?:\(?([2-9]\d\d)\)?[-. ]\s?)?([2-9]\d\d)-(\d{4})(?![\d-])/g, (all, area, exch, line) => [area, exch, line].filter(Boolean).map(g => [...g].map(d => ones[Number(d)]).join(' ')).join(', '));
     text = text.replace(/\b(\d+)(st|nd|rd|th)\b/g, (all, n) => ordinal(Number(n)));
     text = text.replace(/\b(1[1-9]|20)(\d0)s\b/g, (all, c, d) => { const w = year(Number(c + d)); return w.endsWith('y') ? w.slice(0, -1) + 'ies' : w + 's'; });
     text = text.replace(/\b(\d+)\s?[–-]\s?(\d+)\b/g, (all, a, b) => `${a} to ${b}`);
