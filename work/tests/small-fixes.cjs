@@ -57,6 +57,8 @@ for (const [, attrs] of dialogs) {
     ['on 1/2/2020', 'on one/two/two thousand twenty'], ['11/2', 'eleven/two'],
     ['Call 555-1234 now', 'Call five five five, one two three four now'],
     ['(555) 223-4567', 'five five five, two two three, four five six seven'],
+    ['200-2000', 'two hundred to two thousand'], ['pages 300-1500', 'pages three hundred to fifteen hundred'],
+    ['years 300-1950', 'years three hundred to nineteen fifty'], ['555-223-4567', 'five five five, two two three, four five six seven'],
     ['pages 11-15', 'pages eleven to fifteen'], ['1990-1995', 'nineteen ninety to nineteen ninety-five'],
     ['Mr. Smith and Mrs. Jones', 'Mister Smith and Missus Jones'],
     ['Mr. and Mrs. Smith', 'Mister and Missus Smith'], ['Dr. or Mr. Lee', 'Doctor or Mister Lee'],
