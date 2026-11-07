@@ -204,7 +204,7 @@ function bookButton(book, index, grid) {
   if (cover) button.append(el('span','book-format',book.format),el('span','book-ornament','✦'));
   button.append(el('span','book-title',book.title),el('span','book-author',book.author==='Unknown author'&&!cover?'':book.author));
   if (cover) button.append(el('span','book-rating',book.rating ? '★'.repeat(book.rating) : 'THINGSBOOK'));
-  if (book.progress?.percent) { const bar = el('span','reading-progress'); const fill = el('i'); fill.style.width = Math.max(0,Math.min(100,book.progress.percent))+'%'; bar.append(fill); button.append(bar); const pctLabel = el('span','progress-pct', Math.round(book.progress.percent)+'%'); button.append(pctLabel); }
+  if (book.progress?.percent) { const bar = el('span','reading-progress'); const fill = el('i'); fill.style.width = Math.max(0,Math.min(100,book.progress.percent))+'%'; bar.append(fill); button.append(bar); const pctLabel = el('span','progress-pct', Math.round(book.progress.percent)+'% · '+(100-Math.round(book.progress.percent))+'% left'); button.append(pctLabel); }
   if (!cover) button.style.height = `${170 + (index % 4) * 10}px`;
   button.addEventListener('click',() => showDetail(book.id));window.ThingsSanctuary?.decorateBook(button,book); return button;
 }
