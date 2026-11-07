@@ -30,3 +30,5 @@
 .spine .book-author:empty{display:none}
 .library-toolbar>div:first-child{flex:0 0 auto;min-width:210px}.library-toolbar .search{flex:1 1 180px;max-width:300px}
 .shelf-row{overflow-y:hidden;scrollbar-width:thin}
+
+.progress-pct{font-size:10px;color:#31594a;font-weight:600;margin-top:2px;display:block;}
