@@ -173,7 +173,7 @@ const ThingsReader = (() => {
     const scrolled=fraction;if(playing)fraction=(session.paragraph/Math.max(1,passages().length));
     const percent = session.completed ? 100 : Math.min(100,Math.round(100 * (session.location + fraction) / count));
     session.progress = {...session.progress,passageScheme:2,location:session.location,paragraph:session.paragraph,scroll:scrolled,percent,theme:q('reader-theme').value,fontSize:Number(q('reader-size').value),voice:q('narrator-voice').value,speed:Number(q('narrator-speed').value),layout:q('reader-layout').value,typeface:q('reader-typeface').value,lineHeight:Number(q('reader-spacing').value),follow:q('narrator-follow').checked,scope:q('narrator-scope').value,ocr:q('narrator-ocr').checked,sleep:Number(q('narrator-sleep').value),tracking:Number(q('reader-tracking').value),measure:Number(q('reader-measure').value),alignment:q('reader-alignment').value,volume:listeningLevel(),sleepFade:q('narrator-fade')?.checked!==false,updated:Date.now()};
-    q('reader-progress').textContent = `${session.pdf ? 'Page' : 'Chapter'} ${session.location + 1} of ${count} · ${percent}%`;
+    const remaining = 100 - percent; q('reader-progress').textContent = `${session.pdf ? 'Page' : 'Chapter'} ${session.location + 1} of ${count} · ${percent}% · ${remaining}% left`;
   }
   function scheduleSave() { if (!session || session.disposing || session.loading) return; progress(); clearTimeout(session.saveTimer); const current = session; q('reader-save-status').textContent = 'Saving your place…'; current.saveTimer = setTimeout(() => persist(current).catch(() => {}),500); }
   async function persist(current) {
