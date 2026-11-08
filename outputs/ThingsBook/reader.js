@@ -323,8 +323,8 @@ const ThingsReader = (() => {
     q('reader-screen-status').textContent=session.pdf?'PDF page '+(session.location+1)+' of '+session.count:'Screen '+screen+' of '+screens;
     q('reader-screen-previous').disabled=offset<2&&session.location===0;
     q('reader-screen-next').disabled=offset+size>=total-2&&session.location===session.count-1;
-    const remaining=passages().slice(session.paragraph).reduce((n,p)=>n+p.textContent.trim().split(/\s+/).length,0);
-    const overallLeft = session.progress?.percent != null ? (100 - session.progress.percent) : null; const speed=Number(q('narrator-speed').value)||1; const wpm=Math.round(180*speed); const screensLeft=Math.max(0,screens-screen); const screenPos=screens>1?' · screen '+(screen+1)+'/'+screens:''; q('reader-time').textContent=remaining?Math.max(1,Math.ceil(remaining/(180*speed)))+' min left in '+(session.pdf?'page':'chapter')+' · '+remaining+' words left'+(overallLeft != null ? ' · '+overallLeft+'% left overall' : '')+' · ~'+wpm+' wpm'+(screensLeft>0?' · '+screensLeft+' screen'+(screensLeft>1?'s':'')+' left':'')+screenPos:'';
+    const passagesList=passages(); const remaining=passagesList.slice(session.paragraph).reduce((n,p)=>n+p.textContent.trim().split(/\s+/).length,0);
+    const overallLeft = session.progress?.percent != null ? (100 - session.progress.percent) : null; const speed=Number(q('narrator-speed').value)||1; const wpm=Math.round(180*speed); const screensLeft=Math.max(0,screens-screen); const screenPos=screens>1?' · screen '+(screen+1)+'/'+screens:''; const paraPos=passagesList.length>1?' · para '+(session.paragraph+1)+'/'+passagesList.length:''; q('reader-time').textContent=remaining?Math.max(1,Math.ceil(remaining/(180*speed)))+' min left in '+(session.pdf?'page':'chapter')+' · '+remaining+' words left'+(overallLeft != null ? ' · '+overallLeft+'% left overall' : '')+' · ~'+wpm+' wpm'+(screensLeft>0?' · '+screensLeft+' screen'+(screensLeft>1?'s':'')+' left':'')+screenPos+paraPos:'';
   }
   function applyLayout(preserve=true){
     if(!session)return;const dialog=q('reader-dialog'),content=q('reader-content');
