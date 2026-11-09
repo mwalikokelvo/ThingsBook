@@ -25,11 +25,8 @@ async function openManager(page, control) {
     const target = document.querySelector(sel);
     const details = target?.closest('details');
     if (details && !details.open) details.open = true;
+    target?.click();
   }, control);
-  const loc = page.locator(control);
-  await loc.scrollIntoViewIfNeeded();
-  await loc.waitFor({state: 'visible', timeout: 10000});
-  await loc.click({force: true});
   await wait(page, () => $('shelves-dialog').open);
   await page.waitForFunction(() => document.querySelectorAll('#shelves-list .shelf-edit-row').length > 0);
 }
