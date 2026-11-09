@@ -21,6 +21,12 @@ async function deleteRow(page, index) {
 }
 async function openManager(page, control) {
   await wait(page, () => !busy);
+  await page.evaluate(sel => {
+    const target = document.querySelector(sel);
+    const details = target?.closest('details');
+    if (details && !details.open) details.open = true;
+  }, control);
+  await page.waitForSelector(control, {state: 'visible'});
   await page.click(control);
   await wait(page, () => $('shelves-dialog').open);
   await page.waitForFunction(() => document.querySelectorAll('#shelves-list .shelf-edit-row').length > 0);
@@ -96,7 +102,13 @@ async function main() {
   // On a phone the mobile Shelves control opens the same manager and can rename.
   await page.evaluate(() => $('shelves-dialog').close());
   await page.setViewportSize({width:390, height:844});
-  await page.evaluate(() => { const disclosure = document.querySelector('.library-tools-disclosure'); if (disclosure) disclosure.open = true; });
+  await page.waitForFunction(() => matchMedia('(max-width:720px)').matches);
+  await page.waitForFunction(() => {
+    const disclosure = document.querySelector('.library-tools-disclosure');
+    if (disclosure && !disclosure.open) disclosure.open = true;
+    const btn = document.getElementById('mobile-shelves');
+    return btn && btn.offsetParent !== null;
+  });
   await openManager(page, '#mobile-shelves');
   const mobileId = await page.evaluate(() => shelves[0].id);
   await renameRow(page, 0, 'Phone shelf');
