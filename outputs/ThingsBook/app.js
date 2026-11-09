@@ -384,8 +384,8 @@ function showDetail(id, fromReader = false) {
   const content = $('book-detail'); content.replaceChildren();
   const cover = el('div','detail-cover'); cover.style.setProperty('--book-color',book.color); cover.append(el('span','',book.title),el('span','book-ornament','✦'),el('span','book-format',book.format));
   if (/^data:image\/jpeg;base64,[A-Za-z0-9+/=]+$/.test(book.cover||'')) {const image=el('img','detail-cover-image');image.src=book.cover;image.alt='';cover.append(image);}
-  const pct = Math.round(book.progress?.percent || 0); const remaining = 100 - pct; const progressMeta = pct ? ` · ${pct}% read · ${remaining}% left` : '';
-  content.append(cover,el('h2','detail-title',book.title),el('p','detail-meta',`${book.author}\n${book.format}${book.pages?' · '+book.pages+' pages':''} · ${size(book.size)} · ${book.rating ? '★'.repeat(book.rating) : 'Not rated'}${progressMeta}`));
+  const pct = Math.round(book.progress?.percent || 0); const remaining = 100 - pct; const progressMeta = pct ? ` · ${pct}% read · ${remaining}% left` : ''; const totalMins = book.pages ? Math.max(1, Math.round(book.pages * 1.5)) : null; const totalTimeMeta = totalMins ? ` · ~${totalMins} min total` : '';
+  content.append(cover,el('h2','detail-title',book.title),el('p','detail-meta',`${book.author}\n${book.format}${book.pages?' · '+book.pages+' pages':''} · ${size(book.size)} · ${book.rating ? '★'.repeat(book.rating) : 'Not rated'}${progressMeta}${totalTimeMeta}`));
   const actions = el('div','detail-actions'), read = el('button','primary','Open book →'), download = el('button','secondary',book.sourceFormat ? 'Download EPUB ↓' : 'Download original ↓'); if (book.sourceFormat) download.title = `Converted from ${book.sourceFilename || book.sourceFormat} when imported; the original file was not kept.`; read.onclick = () => readBook(id); download.onclick = () => downloadBook(id); actions.append(read,download); if (!fromReader) content.append(actions);
   content.append(el('p','fine','Read and listen inside your library. Downloaded originals are unencrypted files.'));
   const form = el('form','detail-form');
