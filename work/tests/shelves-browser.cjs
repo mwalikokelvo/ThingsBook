@@ -3,7 +3,7 @@
 // and deleting a shelf moves its books (never deletes them). Deleting the last shelf leaves the
 // library's default shelf with every book on it. Skips without Playwright.
 'use strict';
-let chromium; try { ({chromium} = require('playwright')); } catch { console.log('SKIP: Playwright is not installed.'); process.exit(0); }
+let chromium; try { ({chromium} = require('playwright')); } catch { try { ({chromium} = require('playwright-core')); } catch { console.log('SKIP: Playwright is not installed.'); process.exit(0); } }
 const fs = require('node:fs'), os = require('node:os'), path = require('node:path');
 const assert = require('node:assert/strict');
 const {serve, cleanup} = require('./browser-helpers.cjs');
@@ -36,7 +36,11 @@ async function openManager(page, control) {
 
 async function main() {
   await serve(app);
-  const context = await chromium.launchPersistentContext(profile, {headless:true, viewport:{width:1280, height:900}});
+  const context = await chromium.launchPersistentContext(profile, {
+    channel: process.platform === 'win32' ? 'msedge' : undefined,
+    headless: true,
+    viewport: {width:1280, height:900}
+  });
   const page = context.pages()[0] || await context.newPage();
   page.on('dialog', dialog => dialog.accept());
   const problems = []; page.on('pageerror', error => problems.push(error.message));
