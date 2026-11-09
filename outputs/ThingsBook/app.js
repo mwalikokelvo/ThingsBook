@@ -124,6 +124,40 @@ async function allMetadata() { return new Promise((resolve,reject) => {
 }); }
 function storageError(e) { return e?.name === 'QuotaExceededError' ? 'Your browser storage is full. Export a backup, then free some space.' : 'Could not save this change. Your existing library is intact. Try again.'; }
 async function saveShelves(next) { const updated = {...config, library:await sealJSON(next)}; await transaction(['settings'], tx => tx.objectStore('settings').put(updated,'vault')); config = updated; shelves = next; }
+// Shelf lifecycle: renaming changes only the name, deleting moves the shelf's books to another shelf
+// and never deletes a book. Removing the last shelf creates the default shelf a new library starts with.
+const DEFAULT_SHELF_NAME = 'My collection';
+function shelfNameError(value, id) {
+  const name = String(value ?? '').trim();
+  if (!name) return { error: 'Enter a shelf name.' };
+  if (name.length > 80) return { error: 'Shelf names are at most 80 characters.' };
+  if (!shelves.some(s => s.id === id)) return { error: 'That shelf no longer exists.' };
+  if (shelves.some(s => s.id !== id && s.name.trim().toLowerCase() === name.toLowerCase())) return { error: 'Another shelf already has that name.' };
+  return { name };
+}
+async function renameShelf(id, value) {
+  if (!key) return { error: 'Open your library first.' };
+  const check = shelfNameError(value, id);
+  if (check.error) return check;
+  await saveShelves(shelves.map(s => s.id === id ? {...s, name: check.name} : s));
+  render();
+  return { name: check.name };
+}
+async function deleteShelf(id) {
+  if (!key) return { error: 'Open your library first.' };
+  const shelf = shelves.find(s => s.id === id);
+  if (!shelf) return { error: 'That shelf no longer exists.' };
+  let next = shelves.filter(s => s.id !== id);
+  let target = next.find(s => s.name.toLowerCase() === DEFAULT_SHELF_NAME.toLowerCase()) || next[0];
+  if (!target) { target = { id: crypto.randomUUID(), name: DEFAULT_SHELF_NAME }; next = [target]; }
+  const moving = books.filter(b => b.shelfId === id);
+  for (const book of moving) await updateBook(book.id, { shelfId: target.id });
+  await saveShelves(next);
+  if (filter === id) filter = target.id;
+  libraryPage = 0;
+  render();
+  return { shelf, target, moved: moving.length };
+}
 function gateState() {
   const needsSecret = !!pendingBackup || (!!config && !hasDeviceAccess);
   $('gate-description').textContent = pendingBackup ? 'Enter the recovery code or original password for this encrypted backup.' : needsSecret ? 'Enter your current password once to enable password-free access on this device. Your books stay encrypted.' : config ? 'Your place is saved. Open your library whenever you are ready.' : 'Make a home for your books. No password to create or remember on this device.';
@@ -236,6 +270,47 @@ function render() {
   if (!shown) $('shelves').append(el('p','no-results','No books match your search.'));window.ThingsSanctuary?.render();
 }
 function fillShelves(select, selected) { select.replaceChildren(); for (const s of shelves) { const option = el('option','',s.name); option.value = s.id; select.append(option); } select.value = selected || (shelves.some(s => s.id === filter) ? filter : shelves[0].id); }
+function shelfDeleteTarget(id) { const rest = shelves.filter(s => s.id !== id); return rest.find(s => s.name.toLowerCase() === DEFAULT_SHELF_NAME.toLowerCase()) || rest[0] || null; }
+function renderShelvesDialog() {
+  const host = $('shelves-list'); host.replaceChildren();
+  for (const shelf of shelves) {
+    const row = el('div','shelf-edit-row');
+    const input = el('input'); input.type='text'; input.value = shelf.name; input.maxLength = 80; input.setAttribute('aria-label',`Shelf name for ${shelf.name}`);
+    const save = el('button','secondary','Save'); save.type='button'; save.setAttribute('aria-label',`Save name for ${shelf.name}`);
+    const remove = el('button','text-button danger','Delete'); remove.type='button'; remove.setAttribute('aria-label',`Delete shelf ${shelf.name}`);
+    save.onclick = () => saveShelfName(shelf.id, input.value, save);
+    remove.onclick = () => removeShelf(shelf.id, remove);
+    input.onkeydown = event => { if (event.key === 'Enter') { event.preventDefault(); save.click(); } };
+    row.append(input, save, remove); host.append(row);
+  }
+}
+function openShelvesDialog() { if (!key || busy) return; $('shelves-error').textContent = ''; renderShelvesDialog(); if (!$('shelves-dialog').open) $('shelves-dialog').showModal(); }
+async function saveShelfName(id, value, button) {
+  if (busy) { $('shelves-error').textContent = 'Please wait for the current save to finish.'; return; }
+  busy = true; if (button) button.disabled = true; $('shelves-error').textContent = '';
+  try {
+    const result = await renameShelf(id, value);
+    if (result.error) { $('shelves-error').textContent = result.error; return; }
+    renderShelvesDialog(); toast('Shelf renamed.');
+  } catch (error) { $('shelves-error').textContent = storageError(error); }
+  finally { busy = false; if (button) button.disabled = false; }
+}
+async function removeShelf(id, button) {
+  if (busy) return;
+  const shelf = shelves.find(s => s.id === id); if (!shelf) return;
+  const target = shelfDeleteTarget(id), moved = books.filter(b => b.shelfId === id).length;
+  const destination = `“${target ? target.name : DEFAULT_SHELF_NAME}”`;
+  const question = `Delete the shelf “${shelf.name}”?` + (moved ? ` ${moved} ${moved === 1 ? 'book' : 'books'} will move to ${destination}.` : '') + (target ? '' : ` A new shelf, ${destination}, will be created.`) + ' Books are never deleted.';
+  if (!confirm(question)) return;
+  busy = true; if (button) button.disabled = true; $('shelves-error').textContent = '';
+  try {
+    const result = await deleteShelf(id);
+    if (result.error) { $('shelves-error').textContent = result.error; return; }
+    if ($('shelves-dialog').open) renderShelvesDialog();
+    toast(result.moved ? `${result.moved} ${result.moved === 1 ? 'book' : 'books'} moved to “${result.target.name}”.` : 'Shelf deleted.');
+  } catch (error) { $('shelves-error').textContent = storageError(error); }
+  finally { busy = false; if (button) button.disabled = false; }
+}
 function storageDescription(report){return report.available===null?'App storage estimate is unavailable. Your device will check space when saving.':`${size(report.available)} estimated app storage available (${size(report.usage)} used). This is an app quota estimate, not free disk space.`;}
 async function confirmStorage(bytes,action){const report=await ThingsStorage.inspect(bytes);if(!report.low)return true;return confirm(`Storage looks low for this ${action}: ${size(report.available)} estimated app storage available; about ${size(report.needed)} recommended including a safety margin. Estimates can differ from actual space. Free space or use a smaller import/backup. Continue anyway? Existing saved books are preserved if writing fails.`);}
 async function refreshUploadStorage(files){const stamp=++storagePreview,owner=key;$('upload-storage').textContent=files.length?'Checking app storage…':'';if(!files.length)return;const report=await ThingsStorage.inspect(files.reduce((n,file)=>n+file.size,0));if(stamp!==storagePreview||owner!==key||!key)return;$('upload-storage').textContent=storageDescription(report)+` About ${size(report.needed)} recommended for this import including a safety margin.`+(report.low?' Space looks low; you will be asked before importing.':'');}
@@ -485,6 +560,7 @@ async function init() {
   $('shelf-view').onclick = () => switchView('shelf'); $('grid-view').onclick = () => switchView('grid');
   $('add-book').onclick = () => openUpload(); $('upload-form').onsubmit = upload; $('pause-import').onclick=pauseImport; $('book-files').onchange = fileSummary;
   $('new-shelf').onclick = () => { $('shelf-form').reset(); $('shelf-error').textContent = ''; $('shelf-dialog').showModal(); };
+  $('edit-shelves').onclick = openShelvesDialog; $('mobile-shelves').onclick = openShelvesDialog;
   // Mobile users can create shelves from the upload form as well.
   const addShelf = el('button','text-button','+ Create a new shelf'); addShelf.type = 'button'; addShelf.onclick = () => $('new-shelf').click(); $('shelf-select').after(addShelf);
   $('shelf-form').onsubmit = async e => { e.preventDefault(); if (busy) return; const name = $('shelf-name').value.trim(); if (!name) return; busy = true; try { await saveShelves([...shelves,{id:crypto.randomUUID(),name}]); $('shelf-dialog').close(); if ($('upload-dialog').open) fillShelves($('shelf-select'),shelves.at(-1).id); render(); toast('Your new shelf is ready.'); } catch(e) { $('shelf-error').textContent = storageError(e); } finally { busy = false; } };
