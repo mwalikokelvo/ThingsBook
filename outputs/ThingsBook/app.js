@@ -259,6 +259,7 @@ function render() {
   const s = $('sort').value;
   if (s === 'lastRead') return (b.lastRead || 0) - (a.lastRead || 0);
   if (s === 'title') return a.title.localeCompare(b.title);
+  if (s === 'author') return (a.author || '').localeCompare(b.author || '');
   if (s === 'rating') return b.rating - a.rating;
   if (s === 'remaining') {
     const ra = remainingMinutes(a), rb = remainingMinutes(b);
