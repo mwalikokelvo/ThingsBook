@@ -260,6 +260,7 @@ function render() {
   if (s === 'oldest') return (a.added || 0) - (b.added || 0);
   if (s === 'largest') return (b.size || 0) - (a.size || 0);
   if (s === 'smallest') return (a.size || 0) - (b.size || 0);
+  if (s === 'pages') return (b.pages || 0) - (a.pages || 0);
   if (s === 'lastRead') return (b.lastRead || 0) - (a.lastRead || 0);
   if (s === 'title') return a.title.localeCompare(b.title);
   if (s === 'title-desc') return b.title.localeCompare(a.title);
