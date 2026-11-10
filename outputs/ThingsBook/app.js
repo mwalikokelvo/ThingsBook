@@ -265,6 +265,7 @@ function render() {
     if (ra === rb) return (b.lastRead || 0) - (a.lastRead || 0);
     return ra - rb;
   }
+  if (s === 'progress') return (b.progress?.percent || 0) - (a.progress?.percent || 0);
   return b.added - a.added;
 });
   libraryPage=Math.max(0,Math.min(libraryPage,Math.ceil(found.length/60)-1));const visibleBooks=found.slice(libraryPage*60,(libraryPage+1)*60);window.ThingsSanctuary?.pages(found.length,libraryPage,next=>{libraryPage=next;render();});
@@ -526,13 +527,10 @@ async function prepareBackup() {
   busy = true;
   try {
     await closeReader(); await metadataQueue;
-    // close() precedes showModal() so the summary can never be hidden by a reader.
     $('reader-dialog').close();
     const recovery = config.recovery ? decoder.decode(await unseal(config.recovery)) : '';
-    $('backup-summary').textContent = `${books.length} books · ${shelves.length} shelves · ${size(books.reduce((total,book)=>total+book.size,0))} of original files. Includes reading positions, notes, highlights and imported covers/fonts. Books and metadata stay encrypted.`;
-    $('backup-storage').textContent=storageDescription(await ThingsStorage.inspect(0))+' Backup files are larger than the originals because of encryption and encoding. Check space in your chosen save folder; its free space is not reported here.';
-    $('backup-recovery').value = recovery; $('recovery-details').hidden = !recovery;
-    $('backup-ack').checked = false; $('backup-export').disabled = true;
+    $('backup-recovery').value = recovery;
+    $('backup-storage').textContent = storageDescription(await ThingsStorage.inspect(0)) + ' Backup files are larger than the originals because of encryption and encoding. Check space in your chosen save folder; its free space is not reported here.';
     $('backup-dialog').showModal();
   } catch { toast('Could not prepare your backup. Check free space and try again.'); }
   finally { busy = false; resetIdle(); }
@@ -570,10 +568,9 @@ async function init() {
   } catch(e) { $('gate-error').textContent = e.message || 'Browser storage is unavailable. Use a normal browser window.'; $('unlock-button').disabled = true; return; }
   $('unlock-form').addEventListener('submit',unlock); $('lock').onclick = lock;
   $('cancel-restore').onclick = () => { if (!busy) { pendingBackup = null; gateState(); } };
-  $('backup-ack').onchange = () => { $('backup-export').disabled = !$('backup-ack').checked; };
-  $('backup-export').onclick = () => { if ($('backup-ack').checked) backup(); };
-  $('recovery-download').onclick = downloadRecovery;
-  $('backup-dialog').addEventListener('close',() => { if (!$('backup-dialog').open) { $('backup-recovery').value = ''; $('backup-ack').checked = false; $('recovery-details').open = false; } });
+  $('backup-download').onclick = backup;
+  $('backup-copy').onclick = () => { navigator.clipboard?.writeText($('backup-recovery').value).then(() => toast('Recovery code copied.')).catch(() => toast('Could not copy the recovery code.')); };
+  $('backup-dialog').addEventListener('close',() => { if (!$('backup-dialog').open) { $('backup-recovery').value = ''; } });
   $('all-books').onclick = () => { filter = 'all'; render(); }; $('reading-filter').onclick = () => { filter = 'reading'; render(); };
   $('search').oninput = scheduleLibrarySearch;
   new MutationObserver(()=>{if(!key){libraryNeedsRender=false;return;}if(libraryNeedsRender&&!$('reader-dialog').open)render();}).observe($('reader-dialog'),{attributes:true,attributeFilter:['open']}); $('sort').onchange = render;
