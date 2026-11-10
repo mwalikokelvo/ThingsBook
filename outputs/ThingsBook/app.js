@@ -573,6 +573,7 @@ async function init() {
   $('backup-dialog').addEventListener('close',() => { if (!$('backup-dialog').open) { $('backup-recovery').value = ''; } });
   $('all-books').onclick = () => { filter = 'all'; render(); }; $('reading-filter').onclick = () => { filter = 'reading'; render(); };
   $('search').oninput = scheduleLibrarySearch;
+  $('search').addEventListener('keydown', e => { if (e.key === 'Escape' && $('search').value) { e.preventDefault(); $('search').value = ''; scheduleLibrarySearch(); } });
   new MutationObserver(()=>{if(!key){libraryNeedsRender=false;return;}if(libraryNeedsRender&&!$('reader-dialog').open)render();}).observe($('reader-dialog'),{attributes:true,attributeFilter:['open']}); $('sort').onchange = render;
   function switchView(next) { view = next; for (const v of ['shelf','grid']) { $(`${v}-view`).classList.toggle('selected',view === v); $(`${v}-view`).setAttribute('aria-pressed',String(view === v)); } render(); }
   $('shelf-view').onclick = () => switchView('shelf'); $('grid-view').onclick = () => switchView('grid');
