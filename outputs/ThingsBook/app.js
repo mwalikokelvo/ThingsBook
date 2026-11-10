@@ -269,6 +269,7 @@ function render() {
     return ra - rb;
   }
   if (s === 'progress') return (b.progress?.percent || 0) - (a.progress?.percent || 0);
+  if (s === 'progress-asc') return (a.progress?.percent || 0) - (b.progress?.percent || 0);
   return b.added - a.added;
 });
   libraryPage=Math.max(0,Math.min(libraryPage,Math.ceil(found.length/60)-1));const visibleBooks=found.slice(libraryPage*60,(libraryPage+1)*60);window.ThingsSanctuary?.pages(found.length,libraryPage,next=>{libraryPage=next;render();});
