@@ -271,6 +271,7 @@ if (s === 'pages-asc') return (a.pages || 0) - (b.pages || 0);
   if (s === 'author') return (a.author || '').localeCompare(b.author || '');
   if (s === 'author-desc') return (b.author || '').localeCompare(a.author || '');
   if (s === 'rating') return b.rating - a.rating;
+  if (s === 'rating-asc') return a.rating - b.rating;
   if (s === 'remaining') {
     const ra = remainingMinutes(a), rb = remainingMinutes(b);
     if (ra === rb) return (b.lastRead || 0) - (a.lastRead || 0);
