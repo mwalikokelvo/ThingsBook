@@ -263,6 +263,7 @@ function render() {
   if (s === 'pages') return (b.pages || 0) - (a.pages || 0);
 if (s === 'pages-asc') return (a.pages || 0) - (b.pages || 0);
   if (s === 'year') return (b.year || 0) - (a.year || 0) || a.title.localeCompare(b.title);
+  if (s === 'year-asc') return (a.year || 0) - (b.year || 0) || a.title.localeCompare(b.title);
   if (s === 'lastRead') return (b.lastRead || 0) - (a.lastRead || 0);
   if (s === 'title') return a.title.localeCompare(b.title);
   if (s === 'title-desc') return b.title.localeCompare(a.title);
