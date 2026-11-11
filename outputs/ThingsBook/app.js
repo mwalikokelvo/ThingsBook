@@ -272,6 +272,8 @@ if (s === 'pages-asc') return (a.pages || 0) - (b.pages || 0);
   if (s === 'language-desc') return (b.language || '').localeCompare(a.language || '') || a.title.localeCompare(b.title);
   if (s === 'format') return (a.format || '').localeCompare(b.format || '') || a.title.localeCompare(b.title);
   if (s === 'format-desc') return (b.format || '').localeCompare(a.format || '') || a.title.localeCompare(b.title);
+  if (s === 'filename') return (a.filename || '').localeCompare(b.filename || '') || a.title.localeCompare(b.title);
+  if (s === 'filename-desc') return (b.filename || '').localeCompare(a.filename || '') || a.title.localeCompare(b.title);
   if (s === 'random') return Math.random() - 0.5;
   if (s === 'lastRead') return (b.lastRead || 0) - (a.lastRead || 0);
   if (s === 'title') return a.title.localeCompare(b.title);
