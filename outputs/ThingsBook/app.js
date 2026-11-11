@@ -265,6 +265,7 @@ if (s === 'pages-asc') return (a.pages || 0) - (b.pages || 0);
   if (s === 'year') return (b.year || 0) - (a.year || 0) || a.title.localeCompare(b.title);
   if (s === 'year-asc') return (a.year || 0) - (b.year || 0) || a.title.localeCompare(b.title);
   if (s === 'series') return (a.series || '').localeCompare(b.series || '') || (a.seriesNumber || '').localeCompare(b.seriesNumber || '', undefined, {numeric: true}) || a.title.localeCompare(b.title);
+  if (s === 'series-desc') return (b.series || '').localeCompare(a.series || '') || (b.seriesNumber || '').localeCompare(a.seriesNumber || '', undefined, {numeric: true}) || a.title.localeCompare(b.title);
   if (s === 'publisher') return (a.publisher || '').localeCompare(b.publisher || '') || a.title.localeCompare(b.title);
   if (s === 'language') return (a.language || '').localeCompare(b.language || '') || a.title.localeCompare(b.title);
   if (s === 'format') return (a.format || '').localeCompare(b.format || '') || a.title.localeCompare(b.title);
