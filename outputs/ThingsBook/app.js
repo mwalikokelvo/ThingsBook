@@ -251,6 +251,11 @@ function remainingMinutes(book) {
   return remPages ? Math.max(1, Math.round(remPages * 1.5)) : Infinity;
 }
 
+
+function estTime(book) {
+  const pages = book.pages || 0;
+  return pages ? Math.max(1, Math.round(pages * 1.5)) : 0;
+}
 function render() {
   clearTimeout(searchTimer);searchTimer=null;libraryNeedsRender=false;
   const query = $('search').value.trim().toLowerCase();const signature=filter+'|'+query;if(signature!==libraryQuery){libraryPage=0;libraryQuery=signature;}
@@ -300,6 +305,8 @@ if (s === 'pages-asc') return (a.pages || 0) - (b.pages || 0);
     const order = {reading: 0, unread: 1, finished: 2};
     return (order[b.status] ?? 9) - (order[a.status] ?? 9) || a.title.localeCompare(b.title);
   }
+  if (s === 'esttime') return estTime(b) - estTime(a) || a.title.localeCompare(b.title);
+  if (s === 'esttime-asc') return estTime(a) - estTime(b) || a.title.localeCompare(b.title);
   return b.added - a.added;
 });
   libraryPage=Math.max(0,Math.min(libraryPage,Math.ceil(found.length/60)-1));const visibleBooks=found.slice(libraryPage*60,(libraryPage+1)*60);window.ThingsSanctuary?.pages(found.length,libraryPage,next=>{libraryPage=next;render();});
