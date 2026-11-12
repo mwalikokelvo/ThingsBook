@@ -307,6 +307,14 @@ if (s === 'pages-asc') return (a.pages || 0) - (b.pages || 0);
   }
   if (s === 'esttime') return estTime(b) - estTime(a) || a.title.localeCompare(b.title);
   if (s === 'esttime-asc') return estTime(a) - estTime(b) || a.title.localeCompare(b.title);
+  if (s === 'notes') {
+    const na = (a.notes || '').length, nb = (b.notes || '').length;
+    return nb - na || a.title.localeCompare(b.title);
+  }
+  if (s === 'notes-desc') {
+    const na = (a.notes || '').length, nb = (b.notes || '').length;
+    return na - nb || a.title.localeCompare(b.title);
+  }
   return b.added - a.added;
 });
   libraryPage=Math.max(0,Math.min(libraryPage,Math.ceil(found.length/60)-1));const visibleBooks=found.slice(libraryPage*60,(libraryPage+1)*60);window.ThingsSanctuary?.pages(found.length,libraryPage,next=>{libraryPage=next;render();});
