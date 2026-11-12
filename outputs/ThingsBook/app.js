@@ -315,6 +315,8 @@ if (s === 'pages-asc') return (a.pages || 0) - (b.pages || 0);
     const na = (a.notes || '').length, nb = (b.notes || '').length;
     return na - nb || a.title.localeCompare(b.title);
   }
+  if (s === 'seriesnum') return (a.seriesNumber || 999) - (b.seriesNumber || 999) || a.title.localeCompare(b.title);
+  if (s === 'seriesnum-desc') return (b.seriesNumber || 0) - (a.seriesNumber || 0) || a.title.localeCompare(b.title);
   return b.added - a.added;
 });
   libraryPage=Math.max(0,Math.min(libraryPage,Math.ceil(found.length/60)-1));const visibleBooks=found.slice(libraryPage*60,(libraryPage+1)*60);window.ThingsSanctuary?.pages(found.length,libraryPage,next=>{libraryPage=next;render();});
