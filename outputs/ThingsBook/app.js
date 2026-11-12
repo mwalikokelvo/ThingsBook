@@ -276,6 +276,7 @@ if (s === 'pages-asc') return (a.pages || 0) - (b.pages || 0);
   if (s === 'filename-desc') return (b.filename || '').localeCompare(a.filename || '') || a.title.localeCompare(b.title);
   if (s === 'random') return Math.random() - 0.5;
   if (s === 'lastRead') return (b.lastRead || 0) - (a.lastRead || 0);
+  if (s === 'lastRead-asc') return (a.lastRead || 0) - (b.lastRead || 0);
   if (s === 'title') return a.title.localeCompare(b.title);
   if (s === 'title-desc') return b.title.localeCompare(a.title);
   if (s === 'author') return (a.author || '').localeCompare(b.author || '');
