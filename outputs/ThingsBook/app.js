@@ -292,6 +292,14 @@ if (s === 'pages-asc') return (a.pages || 0) - (b.pages || 0);
   if (s === 'progress-asc') return (a.progress?.percent || 0) - (b.progress?.percent || 0);
   if (s === 'tags') return (a.tags?.[0] || '').localeCompare(b.tags?.[0] || '') || a.title.localeCompare(b.title);
   if (s === 'tags-desc') return (b.tags?.[0] || '').localeCompare(a.tags?.[0] || '') || a.title.localeCompare(b.title);
+  if (s === 'status') {
+    const order = {reading: 0, unread: 1, finished: 2};
+    return (order[a.status] ?? 9) - (order[b.status] ?? 9) || a.title.localeCompare(b.title);
+  }
+  if (s === 'status-desc') {
+    const order = {reading: 0, unread: 1, finished: 2};
+    return (order[b.status] ?? 9) - (order[a.status] ?? 9) || a.title.localeCompare(b.title);
+  }
   return b.added - a.added;
 });
   libraryPage=Math.max(0,Math.min(libraryPage,Math.ceil(found.length/60)-1));const visibleBooks=found.slice(libraryPage*60,(libraryPage+1)*60);window.ThingsSanctuary?.pages(found.length,libraryPage,next=>{libraryPage=next;render();});
