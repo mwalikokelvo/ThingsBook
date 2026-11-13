@@ -319,6 +319,8 @@ if (s === 'pages-asc') return (a.pages || 0) - (b.pages || 0);
   if (s === 'seriesnum-desc') return (b.seriesNumber || 0) - (a.seriesNumber || 0) || a.title.localeCompare(b.title);
   if (s === 'tagcount') return (b.tags?.length || 0) - (a.tags?.length || 0) || a.title.localeCompare(b.title);
   if (s === 'tagcount-asc') return (a.tags?.length || 0) - (b.tags?.length || 0) || a.title.localeCompare(b.title);
+  if (s === 'cover') return (b.cover ? 1 : 0) - (a.cover ? 1 : 0) || a.title.localeCompare(b.title);
+  if (s === 'cover-desc') return (a.cover ? 1 : 0) - (b.cover ? 1 : 0) || a.title.localeCompare(b.title);
   return b.added - a.added;
 });
   libraryPage=Math.max(0,Math.min(libraryPage,Math.ceil(found.length/60)-1));const visibleBooks=found.slice(libraryPage*60,(libraryPage+1)*60);window.ThingsSanctuary?.pages(found.length,libraryPage,next=>{libraryPage=next;render();});
