@@ -207,53 +207,51 @@ async function unlock(event) {
       // Every book of a backup is verified and staged piece by piece before anything is replaced.
       if (pendingBackup) await stageRestore(pendingBackup,candidateKey);
       const saveAccess = !remembered;
-      if (saveAccess) remembered = await ThingsDeviceAccess.remember(password,candidateKey);
-      await transaction(['settings'], tx => tx.objectStore('settings').put(updated,'vault'));
-      config = updated;
-      if (saveAccess) hasDeviceAccess = true;
-      books = decodedBooks;
-      shelves = decodedShelves;
-      if (pendingBackup) {
-        // The staged books are now the library. The old library is gone.
-        await transaction(['books'], tx => { for (const book of pendingBackup.books) tx.objectStore('books').put(book); });
-        pendingBackup = null;
-      }
+      if (saveAccess) remembered = await ThingsDeviceAccess.remember(password,candidateKey,Array.from(source.check.iv).join(','));
+      // Reopening an already remembered library is read-only: low disk space
+      // must not prevent access merely because another key write would fail.
+      if (saveAccess || pendingBackup) await transaction(pendingBackup ? ['settings','books','chunks','staging','ocr'] : ['settings'], tx => {
+        if (pendingBackup) swapStaged(tx,pendingBackup);
+        tx.objectStore('settings').put(updated,'vault'); tx.objectStore('settings').put(remembered,'device-access');
+      });
+      pendingBackup = null; config = updated; key = candidateKey; shelves = decodedShelves; books = decodedBooks;
+      removeOrphanChunks().catch(() => {}); removeOrphanRecognizedText().catch(() => {}); migrateBooks().catch(() => 0).then(() => tidyBookDetails()).then(() => fingerprintBooks()).catch(() => {});
     } else {
-      // New library.
-      const check = await seal(encoder.encode('ThingsBook vault v1'),candidateKey);
-      const library = await sealJSON([{id:crypto.randomUUID(),name:DEFAULT_SHELF_NAME}],candidateKey);
-      updated = {salt:b64(salt),check,library,recovery:await seal(encoder.encode(password),candidateKey)};
-      await transaction(['settings'], tx => tx.objectStore('settings').put(updated,'vault'));
-      config = updated;
-      remembered = await ThingsDeviceAccess.remember(password,candidateKey);
-      hasDeviceAccess = true;
-      books = [];
-      shelves = [{id:crypto.randomUUID(),name:DEFAULT_SHELF_NAME}];
-      await saveShelves(shelves);
+      key = candidateKey; const initial = [{id:crypto.randomUUID(),name:'My collection'}];
+      const created = {version:1,salt,check:await seal(encoder.encode('ThingsBook vault v1')),library:await sealJSON(initial),recovery:await seal(encoder.encode(password))};
+      remembered = await ThingsDeviceAccess.remember(password,candidateKey,Array.from(created.check.iv).join(','));
+      await transaction(['settings'], tx => { tx.objectStore('settings').put(created,'vault'); tx.objectStore('settings').put(remembered,'device-access'); }); config = created; shelves = initial; books = [];
     }
-    key = candidateKey;
-    $('gate').hidden = true;
-    $('app').hidden = false;
-    render();
-    resetIdle();
-    // Background work after unlock.
-    removeOrphanChunks().then(n => n && toast('Removed '+n+' unfinished import'+(n>1?'s':'')+'.'));
-    removeOrphanRecognizedText();
-    migrateBooks();
-    tidyBookDetails();
-    fingerprintBooks();
-  } catch (e) {
-    $('gate-error').textContent = e.message || 'Could not open the library.';
-  } finally {
-    busy = false;
-    $('unlock-button').disabled = false;
-  }
+    hasDeviceAccess = true;
+    $('password').value = ''; $('confirm-password').value = ''; filter = 'all'; $('gate').hidden = true; $('app').hidden = false; render(); resetIdle();
+    if (navigator.storage?.persist) navigator.storage.persist().catch(() => {});
+  } catch (e) { key = null; $('gate-error').textContent = e?.name==='QuotaExceededError'?'Not enough app storage to finish saving. Your existing library is unchanged. Free space, then retry or cancel this restore.':e?.message || storageError(e); }
+  finally { busy = false; $('unlock-button').disabled = false; }
 }
+function bookButton(book, index, grid) {
+  const cover = grid || index === 0;
+  const button = el('button',`book ${cover ? 'cover' : 'spine'}`);
+  button.style.setProperty('--book-color', /^#[0-9a-f]{6}$/i.test(book.color) ? book.color : '#31534a');
+  button.style.animationDelay = `${Math.min(index * .04, .4)}s`;
+  const pct = Math.round(book.progress?.percent || 0); const remaining = 100 - pct; const progressNote = pct ? ` · ${pct}% read · ${remaining}% left` : ''; const daysAgo = book.lastRead ? Math.floor((Date.now() - book.lastRead) / 86400000) : null; const lastReadNote = daysAgo != null ? (daysAgo === 0 ? ' · last read today' : daysAgo === 1 ? ' · last read yesterday' : ' · last read ' + daysAgo + 'd ago') : ''; const formatNote = book.format ? ` · ${book.format}` : ''; const sizeNote = book.size ? ` · ${size(book.size)}` : ''; const pagesNote = book.pages ? ` · ${book.pages} pages` : ''; const remPages = book.pages && pct && pct < 100 ? Math.max(0, Math.round(book.pages * remaining / 100)) : null; const remMins = remPages ? Math.max(1, Math.round(remPages * 1.5)) : null; const remTimeNote = remMins ? (remMins >= 60 ? ` · ~${Math.floor(remMins/60)}h ${remMins%60}m left` : ` · ~${remMins} min left`) : ''; const languageNote = book.language ? ` · ${book.language}` : ''; const seriesNote = book.series ? ` · ${book.series}${book.seriesNumber ? ' #' + book.seriesNumber : ''}` : ''; const yearNote = book.year ? ` · ${book.year}` : ''; const publisherNote = book.publisher ? ` · ${book.publisher}` : ''; const tagsNote = (book.tags && book.tags.length) ? ` · Tags: ${book.tags.slice(0,5).join(', ')}${book.tags.length > 5 ? '…' : ''}` : ''; const statusNote = book.status && book.status !== 'unread' ? ` · ${book.status}` : ''; const ratingNote = book.rating ? ` · ${'★'.repeat(book.rating)}` : ''; const notesNote = book.notes ? ' · has notes' : ''; const addedDays = book.added ? Math.floor((Date.now() - book.added) / 86400000) : null; const addedNote = addedDays != null ? (addedDays === 0 ? ' · added today' : addedDays === 1 ? ' · added yesterday' : ' · added ' + addedDays + 'd ago') : ''; const sourceNote = book.sourceFormat ? ' · from ' + book.sourceFormat : ''; const fileNote = book.filename && book.filename !== book.title ? ' · ' + book.filename : ''; const shelf = shelves.find(s => s.id === book.shelfId); const coverNote = book.cover ? ' · custom cover' : ''; const loc = book.progress?.location; const locNote = loc != null ? ' · at ' + (book.format === 'PDF' ? 'page' : 'chapter') + ' ' + (loc + 1) : ''; const remPagesNote = remPages != null && remPages > 0 ? ' · ~' + remPages + ' pages left' : ''; const totalMins = book.pages ? Math.max(1, Math.round(book.pages * 1.5)) : null; const totalTimeNote = totalMins ? ' · ~' + totalMins + ' min total' : ''; const shelfNote = shelf ? ' · ' + shelf.name : ''; button.title = `${book.title} — ${book.author}${progressNote}${lastReadNote}${formatNote}${sizeNote}${pagesNote}${languageNote}${seriesNote}${yearNote}${publisherNote}${ratingNote}${tagsNote}${statusNote}${notesNote}${addedNote}${sourceNote}${fileNote}${coverNote}${locNote}${remPagesNote}${remTimeNote}${totalTimeNote}${shelfNote}`; button.setAttribute('aria-label',`Open ${book.title} by ${book.author}${progressNote}${lastReadNote}${formatNote}${sizeNote}${pagesNote}${languageNote}${seriesNote}${yearNote}${publisherNote}${ratingNote}${tagsNote}${statusNote}${notesNote}${addedNote}${sourceNote}${fileNote}${coverNote}${locNote}${remPagesNote}${remTimeNote}${totalTimeNote}${shelfNote}`);
+  if(cover&&/^data:image\/jpeg;base64,[A-Za-z0-9+/=]+$/.test(book.cover||'')){button.classList.add('has-cover');const image=el('img','custom-cover');image.src=book.cover;image.alt='';image.loading='lazy';image.decoding='async';button.append(image);}
+  if (cover) button.append(el('span','book-format',book.format),el('span','book-ornament','✦'));
+  button.append(el('span','book-title',book.title),el('span','book-author',book.author==='Unknown author'&&!cover?'':book.author));
+  if (cover) button.append(el('span','book-rating',book.rating ? '★'.repeat(book.rating) : 'THINGSBOOK'));
+  if (book.progress?.percent) { const bar = el('span','reading-progress'); const fill = el('i'); fill.style.width = Math.max(0,Math.min(100,book.progress.percent))+'%'; bar.append(fill); button.append(bar); const pctText = Math.round(book.progress.percent)+'% · '+(100-Math.round(book.progress.percent))+'% left' + (remTimeNote || '') + (locNote || ''); const pctLabel = el('span','progress-pct', pctText); button.append(pctLabel); }
+  if (!cover) button.style.height = `${170 + (index % 4) * 10}px`;
+  button.addEventListener('click',() => showDetail(book.id));window.ThingsSanctuary?.decorateBook(button,book); return button;
+}
+function refreshLibrary(){if($('reader-dialog').open){libraryNeedsRender=true;return;}render();}
+function scheduleLibrarySearch(){clearTimeout(searchTimer);searchTimer=setTimeout(()=>{searchTimer=null;if(key)refreshLibrary();},120);}
 function remainingMinutes(book) {
   const pct = Math.round(book.progress?.percent || 0);
+  if (!book.pages || pct >= 100) return Infinity;
   const remPages = Math.max(0, Math.round(book.pages * (100 - pct) / 100));
   return remPages ? Math.max(1, Math.round(remPages * 1.5)) : Infinity;
 }
+
+
 function estTime(book) {
   const pages = book.pages || 0;
   return pages ? Math.max(1, Math.round(pages * 1.5)) : 0;
@@ -319,218 +317,325 @@ if (s === 'pages-asc') return (a.pages || 0) - (b.pages || 0);
   }
   if (s === 'seriesnum') return (a.seriesNumber || 999) - (b.seriesNumber || 999) || a.title.localeCompare(b.title);
   if (s === 'seriesnum-desc') return (b.seriesNumber || 0) - (a.seriesNumber || 0) || a.title.localeCompare(b.title);
-  if (s === 'tagcount') {
-    const na = (a.tags || []).length, nb = (b.tags || []).length;
-    return nb - na || a.title.localeCompare(b.title);
-  }
-  if (s === 'tagcount-asc') {
-    const na = (a.tags || []).length, nb = (b.tags || []).length;
-    return na - nb || a.title.localeCompare(b.title);
-  }
+  if (s === 'tagcount') return (b.tags?.length || 0) - (a.tags?.length || 0) || a.title.localeCompare(b.title);
+  if (s === 'tagcount-asc') return (a.tags?.length || 0) - (b.tags?.length || 0) || a.title.localeCompare(b.title);
   return b.added - a.added;
-  });
-  const groups = shelves.map(shelf => ({shelf, books: found.filter(b => b.shelfId === shelf.id)}));
-  const ordered=[];for(let offset=0;offset<found.length;offset+=60){const page=found.slice(offset,offset+60);ordered.push(...(filter==='reading'?page:groups.flatMap(shelf=>page.filter(book=>book.shelfId===shelf.id))));}window.ThingsSanctuary?.selectionChanged(ordered.map(book=>book.id),signature+'|'+$('sort').value+'|'+view);
-  $('result-count').textContent = found.length === books.length ? 'A collection that grows with you' : `${found.length} of ${books.length} books`;
-  $('total-books').textContent = books.length;
-  $('total-shelves').textContent = shelves.length;
-  $('total-reading').textContent = books.filter(b => b.status === 'reading').length;
-  $('nav-count').textContent = books.length;
-  const shelfNav = $('shelf-nav'); shelfNav.replaceChildren();
-  for (const shelf of shelves) {
-    const btn = el('button', 'nav-item', shelf.name);
-    btn.onclick = () => { filter = shelf.id; render(); };
-    if (filter === shelf.id) btn.classList.add('active');
-    shelfNav.append(btn);
-  }
-  $('all-books').classList.toggle('active', filter === 'all');
-  $('reading-filter').classList.toggle('active', filter === 'reading');
-  $('location').textContent = filter === 'all' ? 'All books' : filter === 'reading' ? 'Currently reading' : shelves.find(s => s.id === filter)?.name || 'Shelf';
-  const shelvesEl = $('shelves'); shelvesEl.replaceChildren();
+});
+  libraryPage=Math.max(0,Math.min(libraryPage,Math.ceil(found.length/60)-1));const visibleBooks=found.slice(libraryPage*60,(libraryPage+1)*60);window.ThingsSanctuary?.pages(found.length,libraryPage,next=>{libraryPage=next;render();});
+  $('nav-count').textContent = books.length; $('total-books').textContent = books.length; $('total-shelves').textContent = shelves.length; $('total-reading').textContent = books.filter(b => b.status === 'reading').length; $('total-storage').textContent = size(books.reduce((n,b) => n + b.size + 16,0));
   const resume = [...books].filter(b => b.lastRead && b.status !== 'finished' && b.progress?.percent!==100).sort((a,b) => b.lastRead-a.lastRead)[0]; const resumeHost = $('continue-reading'); resumeHost.replaceChildren(); resumeHost.hidden = !resume;
-  if (resume) {
-    const card = el('div', 'continue-card');
-    const cover = el('div', 'continue-cover'); cover.style.setProperty('--book-color', resume.color); cover.append(el('span', '', resume.title));
-    const info = el('div', 'continue-info');
-    info.append(el('p', 'eyebrow', 'CONTINUE READING'), el('h3', '', resume.title), el('p', '', resume.author));
-    const pct = Math.round(resume.progress?.percent || 0);
-    const bar = el('div', 'progress-bar'); bar.append(el('div', 'progress-fill')); bar.querySelector('.progress-fill').style.width = pct + '%';
-    info.append(bar, el('span', 'fine', pct + '% · ' + (resume.progress?.location != null ? (resume.format === 'PDF' ? 'page ' : 'chapter ') + (resume.progress.location + 1) : '')));
-    const open = el('button', 'primary', 'Continue →'); open.onclick = () => readBook(resume.id);
-    info.append(open);
-    card.append(cover, info);
-    resumeHost.append(card);
+  if (resume) { const pct = Math.round(resume.progress?.percent || 0); const remPages = resume.pages && resume.progress?.percent ? Math.max(0, Math.round(resume.pages * (100 - resume.progress.percent) / 100)) : null; const remMins = remPages ? Math.max(1, Math.round(remPages * 1.5)) : null; const remNote = remMins ? (remMins >= 60 ? ` · ~${Math.floor(remMins/60)}h ${remMins%60}m left` : ` · ~${remMins} min left`) : ''; const text = el('div'); text.append(el('strong','',resume.title),el('p','',`${pct}% read · ${100 - pct}% left${remNote} · your next chapter is waiting`)); const button = el('button','primary','Continue reading →'); button.title = `Continue ${resume.title} · ${pct}% read · ${100 - pct}% left${remNote}`; button.setAttribute('aria-label', `Continue reading ${resume.title} by ${resume.author}, ${pct}% read, ${100 - pct}% left${remNote}`); button.onclick = () => readBook(resume.id); resumeHost.append(text,button); }
+  const current = shelves.find(s => s.id === filter); $('location').textContent = current?.name || (filter === 'reading' ? 'Currently reading' : 'All books'); $('library-heading').textContent = current?.name || (filter === 'reading' ? 'Currently reading' : 'Your bookshelf'); $('result-count').textContent = books.length ? `${found.length} ${found.length === 1 ? 'book' : 'books'} · a little world of your own` : 'A collection that grows with you';
+  $('all-books').classList.toggle('active',filter === 'all'); $('reading-filter').classList.toggle('active',filter === 'reading');
+  $('shelf-nav').replaceChildren(); for (const shelf of shelves) { const btn = el('button',`nav-item ${filter === shelf.id ? 'active' : ''}`); btn.append(el('span','','▱'),document.createTextNode(shelf.name),el('b','',String(books.filter(b => b.shelfId === shelf.id).length))); btn.onclick = () => { filter = shelf.id; render(); }; $('shelf-nav').append(btn); }
+  $('shelves').replaceChildren(); const groups = filter === 'reading' ? [{id:'reading',name:'One chapter at a time'}] : shelves.filter(s => !current || s.id === current.id);
+  const ordered=[];for(let offset=0;offset<found.length;offset+=60){const page=found.slice(offset,offset+60);ordered.push(...(filter==='reading'?page:groups.flatMap(shelf=>page.filter(book=>book.shelfId===shelf.id))));}window.ThingsSanctuary?.selectionChanged(ordered.map(book=>book.id),signature+'|'+$('sort').value+'|'+view);
+  let shown = 0;
+  for (const shelf of groups) {
+    const items = filter === 'reading' ? visibleBooks : visibleBooks.filter(b => b.shelfId === shelf.id);
+    if ((query||found.length) && !items.length) continue;
+    const wrap = el('section','shelf-group'), heading = el('div','shelf-heading'); heading.append(el('strong','',shelf.name),el('span','',`${items.length} ${items.length === 1 ? 'book' : 'books'}`)); wrap.append(heading);
+    const row = el('div',view === 'shelf' ? 'shelf-row' : 'grid-row'); items.forEach((book,i) => row.append(bookButton(book,i,view === 'grid')));
+    if (!items.length) row.append(el('p','shelf-empty',filter === 'reading' ? 'Open a book to begin your next chapter.' : 'Your next favorite belongs here. Add your first book.'));
+    wrap.append(row); if (view === 'shelf') wrap.append(el('div','shelf-floor')); $('shelves').append(wrap); shown++;
   }
-  if (view === 'shelf') {
-    for (const {shelf, books: shelfBooks} of groups) {
-      if (!shelfBooks.length && filter !== shelf.id) continue;
-      const section = el('section', 'shelf');
-      section.append(el('h3', 'shelf-title', shelf.name + ' · ' + shelfBooks.length));
-      const grid = el('div', 'books');
-      for (const book of shelfBooks) grid.append(bookButton(book));
-      section.append(grid);
-      shelvesEl.append(section);
+  if (!shown) $('shelves').append(el('p','no-results','No books match your search.'));window.ThingsSanctuary?.render();
+}
+function fillShelves(select, selected) { select.replaceChildren(); for (const s of shelves) { const option = el('option','',s.name); option.value = s.id; select.append(option); } select.value = selected || (shelves.some(s => s.id === filter) ? filter : shelves[0].id); }
+function shelfDeleteTarget(id) { const rest = shelves.filter(s => s.id !== id); return rest.find(s => s.name.toLowerCase() === DEFAULT_SHELF_NAME.toLowerCase()) || rest[0] || null; }
+function renderShelvesDialog() {
+  const host = $('shelves-list'); host.replaceChildren();
+  for (const shelf of shelves) {
+    const row = el('div','shelf-edit-row');
+    const input = el('input'); input.type='text'; input.value = shelf.name; input.maxLength = 80; input.setAttribute('aria-label',`Shelf name for ${shelf.name}`);
+    const save = el('button','secondary','Save'); save.type='button'; save.setAttribute('aria-label',`Save name for ${shelf.name}`);
+    const remove = el('button','text-button danger','Delete'); remove.type='button'; remove.setAttribute('aria-label',`Delete shelf ${shelf.name}`);
+    save.onclick = () => saveShelfName(shelf.id, input.value, save);
+    remove.onclick = () => removeShelf(shelf.id, remove);
+    input.onkeydown = event => { if (event.key === 'Enter') { event.preventDefault(); save.click(); } };
+    row.append(input, save, remove); host.append(row);
+  }
+}
+function openShelvesDialog() { if (!key || busy) return; $('shelves-error').textContent = ''; renderShelvesDialog(); if (!$('shelves-dialog').open) $('shelves-dialog').showModal(); }
+async function saveShelfName(id, value, button) {
+  if (busy) { $('shelves-error').textContent = 'Please wait for the current save to finish.'; return; }
+  busy = true; if (button) button.disabled = true; $('shelves-error').textContent = '';
+  try {
+    const result = await renameShelf(id, value);
+    if (result.error) { $('shelves-error').textContent = result.error; return; }
+    renderShelvesDialog(); toast('Shelf renamed.');
+  } catch (error) { $('shelves-error').textContent = storageError(error); }
+  finally { busy = false; if (button) button.disabled = false; }
+}
+async function removeShelf(id, button) {
+  if (busy) return;
+  const shelf = shelves.find(s => s.id === id); if (!shelf) return;
+  const target = shelfDeleteTarget(id), moved = books.filter(b => b.shelfId === id).length;
+  const destination = `“${target ? target.name : DEFAULT_SHELF_NAME}”`;
+  const question = `Delete the shelf “${shelf.name}”?` + (moved ? ` ${moved} ${moved === 1 ? 'book' : 'books'} will move to ${destination}.` : '') + (target ? '' : ` A new shelf, ${destination}, will be created.`) + ' Books are never deleted.';
+  if (!confirm(question)) return;
+  busy = true; if (button) button.disabled = true; $('shelves-error').textContent = '';
+  try {
+    const result = await deleteShelf(id);
+    if (result.error) { $('shelves-error').textContent = result.error; return; }
+    if ($('shelves-dialog').open) renderShelvesDialog();
+    toast(result.moved ? `${result.moved} ${result.moved === 1 ? 'book' : 'books'} moved to “${result.target.name}”.` : 'Shelf deleted.');
+  } catch (error) { $('shelves-error').textContent = storageError(error); }
+  finally { busy = false; if (button) button.disabled = false; }
+}
+function storageDescription(report){return report.available===null?'App storage estimate is unavailable. Your device will check space when saving.':`${size(report.available)} estimated app storage available (${size(report.usage)} used). This is an app quota estimate, not free disk space.`;}
+async function confirmStorage(bytes,action){const report=await ThingsStorage.inspect(bytes);if(!report.low)return true;return confirm(`Storage looks low for this ${action}: ${size(report.available)} estimated app storage available; about ${size(report.needed)} recommended including a safety margin. Estimates can differ from actual space. Free space or use a smaller import/backup. Continue anyway? Existing saved books are preserved if writing fails.`);}
+async function refreshUploadStorage(files){const stamp=++storagePreview,owner=key;$('upload-storage').textContent=files.length?'Checking app storage…':'';if(!files.length)return;const report=await ThingsStorage.inspect(files.reduce((n,file)=>n+file.size,0));if(stamp!==storagePreview||owner!==key||!key)return;$('upload-storage').textContent=storageDescription(report)+` About ${size(report.needed)} recommended for this import including a safety margin.`+(report.low?' Space looks low; you will be asked before importing.':'');}
+function fileSummary() { const files = [...$('book-files').files]; $('file-summary').textContent = files.length ? `${files.length} selected · ${size(files.reduce((n,f) => n + f.size,0))} · Embedded PDF/EPUB details are detected automatically.` : 'Choose one book to customize its details, or several to import together.'; $('book-title').disabled = files.length > 1; void refreshUploadStorage(files); }
+function openUpload(files) { if (!key || busy) return; $('upload-form').reset(); $('import-status').textContent=''; $('import-progress').hidden=true; $('save-book').textContent='Add to my library →'; storagePreview++; $('upload-storage').textContent=''; $('book-title').disabled = false; $('upload-error').textContent = ''; fillShelves($('shelf-select')); $('file-summary').textContent = 'Choose one book to customize its details, or several to import together.'; if (files) { const transfer = new DataTransfer(); for (const file of files) transfer.items.add(file); $('book-files').files = transfer.files; fileSummary(); } $('upload-dialog').showModal(); }
+function pauseImport(){if(!importRun)return;importRun.paused=true;$('pause-import').disabled=true;$('pause-import').textContent='Finishing current book…';}
+function retainImportFiles(files){try{const transfer=new DataTransfer();for(const file of files)transfer.items.add(file);$('book-files').files=transfer.files;return true;}catch{$('book-files').value='';return false;}}
+async function upload(event) {
+  event.preventDefault();if(busy)return;const files=[...$('book-files').files];if(!files.length)return;$('upload-error').textContent='';
+  for(const file of files){const limit=file.size>MAX_FILE&&file.size<=MAX_PDF&&await isPdfFile(file)?MAX_PDF:MAX_FILE;if(!file.size||file.size>limit){$('upload-error').textContent=file.size>MAX_FILE&&await isPdfFile(file)?`${file.name}: choose a PDF under 500 MB.`:`${file.name}: choose a nonempty file under 100 MB (PDFs up to 500 MB).`;return;}}
+  const details={title:$('book-title').value.trim(),author:$('book-author').value.trim(),rating:Number($('book-rating').value),color:$('book-color').value,shelfId:$('shelf-select').value};
+  const run={paused:false};importRun=run;busy=true;$('save-book').disabled=true;$('book-files').disabled=true;let saved=0,count=0,fallbackCount=0,remaining=[],failed=[],skipped=[],started=false;const allowCopies=!!$('import-duplicates')?.checked;
+  try{
+    if(!await confirmStorage(files.reduce((n,file)=>n+file.size,0),'import'))return;
+    started=true;$('import-progress').hidden=false;$('import-progress').max=files.length;$('import-progress').value=0;$('pause-import').hidden=false;$('pause-import').disabled=false;$('pause-import').textContent='Pause after current book';
+    for(let index=0;index<files.length;index++){
+      if(run.paused){remaining.push(...files.slice(index));break;}
+      const file=files[index];let data,stage='read';count=index+1;$('save-book').textContent=`Encrypting book ${count} of ${files.length}…`;$('import-status').textContent=`${saved} saved · Reading ${file.name} (${count} of ${files.length})`;
+      try{
+        // PDFs are recognized from their first kilobyte and streamed: details are read by byte range and
+        // pieces are encrypted straight from the file, so a large PDF is never held in memory whole.
+        // A book already in the library (same content, whatever its name) is skipped unless copies were asked for.
+        const fingerprint=typeof ThingsFingerprint!=='undefined'?await ThingsFingerprint.ofFile(file):null;
+        const twin=fingerprint&&!allowCopies&&books.find(b=>b.fingerprint===fingerprint);
+        if(twin){skipped.push({file,title:twin.title});continue;}
+        const streamed=decoder.decode(new Uint8Array(await file.slice(0,1024).arrayBuffer())).includes('%PDF-');
+        data=streamed?null:await file.arrayBuffer();let format=streamed?'PDF':window.ThingsImport?.format?window.ThingsImport.format(file.name,data):file.name.split('.').pop().toUpperCase();
+        // Kindle books and Word documents are converted to EPUB once, here; the stored book is that EPUB.
+        let storedName=file.name,sourceFormat=null;
+        if(['MOBI','DOCX','ODT','RTF','FB2','CBZ','MD','HTML'].includes(format)){$('save-book').textContent=`Converting ${{MOBI:'Kindle book',DOCX:'Word document',ODT:'OpenDocument file',RTF:'RTF document',FB2:'FictionBook',CBZ:'comic',MD:'Markdown file',HTML:'web page'}[format]} ${count} of ${files.length}…`;const converted=format==='MOBI'?await ThingsKindle.toEPUB(data):format==='DOCX'?await ThingsDocx.toEPUB(data,{name:file.name}):format==='ODT'?await ThingsOdt.toEPUB(data,{name:file.name}):format==='RTF'?await ThingsRtf.toEPUB(data,{name:file.name}):format==='CBZ'?ThingsComic.toEPUB(data,{name:file.name}):format==='MD'||format==='HTML'?await ThingsWebDoc.toEPUB(data,{name:file.name,kind:format}):await ThingsFB2.toEPUB(data);new Uint8Array(data).fill(0);data=converted.epub.buffer.slice(converted.epub.byteOffset,converted.epub.byteOffset+converted.epub.byteLength);format='EPUB';sourceFormat=converted.kind;storedName=file.name.replace(/\.fb2\.zip$/i,'').replace(/\.[^.]*$/,'')+'.epub';}
+        if(format==='PDF'&&!streamed)throw new Error('This file does not appear to be a valid PDF.');
+        if(format==='EPUB'&&new Uint8Array(data)[0]!==80)throw new Error('This file does not appear to be an EPUB archive.');
+        stage='save';
+        let embedded = {};
+        if (format === 'EPUB' && window.ThingsImport) {
+          try {embedded = await window.ThingsImport.epub(data, makeCover); if (embedded.warnings.length) fallbackCount++;}
+          catch {fallbackCount++;}
+        }
+        if(format==='PDF'&&window.ThingsImport){$('save-book').textContent=`Reading PDF details ${count} of ${files.length}…`;embedded=await window.ThingsImport.pdf(null,{source:{size:file.size,read:async(begin,end)=>new Uint8Array(await file.slice(begin,end).arrayBuffer())}});if(embedded.warnings.length)fallbackCount++;}
+        const meta = {id:crypto.randomUUID(),title:files.length === 1 && details.title ? details.title : embedded.title || window.SanctuaryCore?.title(file.name)||file.name.replace(/\.[^.]+$/,'').replace(/[_-]/g,' '),author:details.author || embedded.author || 'Unknown author',rating:details.rating,color:files.length > 1 ? palette[(books.length + count) % palette.length] : details.color,shelfId:details.shelfId,format,size:data ? data.byteLength : file.size,filename:storedName,...(sourceFormat?{sourceFormat,sourceFilename:file.name}:{}),...(fingerprint?{fingerprint}:{}),added:Date.now(),status:'unread',notes:'',series:embedded.series||'',seriesNumber:embedded.seriesNumber||'',year:embedded.year||null,language:embedded.language||'',cover:embedded.cover||null,pages:embedded.pages||null};
+        // Download-site names such as "Title (Author)Publisher Year" become a clean title and author.
+        if(window.ThingsMetadata&&!(files.length===1&&details.title)){const tidy=ThingsMetadata.tidy({title:meta.title,author:meta.author});meta.title=tidy.title;meta.author=details.author||tidy.author;meta.detailsTidied=1;}
+        if(!shelves.some(s=>s.id===meta.shelfId)){if(!shelves.length)await saveShelves([{id:crypto.randomUUID(),name:'Imported Books'}]);meta.shelfId=shelves[0].id;}
+        // Pieces first, one transaction each; the book record is written last, so a book only
+        // appears once every piece is stored. A failure removes the pieces already written.
+        importingBooks.add(meta.id);
+        try {
+          const chunks = await ThingsChunks.write(data ?? file,key,meta.id,part => transaction(['chunks'],tx => tx.objectStore('chunks').put(part)));
+          const record = {id:meta.id,meta:await sealJSON(meta),chunks};
+          await transaction(['books'],tx => tx.objectStore('books').add(record));
+        } catch (error) { await removeChunks(meta.id).catch(() => {}); throw error; }
+        finally { importingBooks.delete(meta.id); }
+        books.push(meta);
+        saved++;
+      }catch(error){failed.push({file,message:stage==='read'?(error?.name==='Error'?error.message:'Could not read this source file. Check access and try again.'):storageError(error)});if(stage==='save'){remaining.push(...files.slice(index+1));break;}}
+      finally{if(data)new Uint8Array(data).fill(0);$('import-progress').value=count;}
     }
-  } else {
-    const grid = el('div', 'books grid');
-    for (const book of found) grid.append(bookButton(book));
-    shelvesEl.append(grid);
-  }
-  if (!found.length) shelvesEl.append(el('p', 'empty', 'No books match your search or filter.'));
+    remaining=[...failed.map(item=>item.file),...remaining];
+    $('import-status').textContent=`${saved} saved · ${skipped.length?`${skipped.length} already in your library · `:''}${failed.length} failed · ${remaining.length-failed.length} waiting`;
+    const skippedNote=skipped.length?`Already in your library, not added again: ${skipped.slice(0,5).map(item=>`${item.file.name} (${item.title})`).join(', ')}${skipped.length>5?` and ${skipped.length-5} more`:''}. To keep a second copy, tick “Also import books already in my library”.`:'';
+    if(remaining.length){const retained=retainImportFiles(remaining);if(files.length>1)$('book-title').value='';fileSummary();$('upload-error').textContent=failed.length?failed.slice(0,10).map(item=>`${item.file.name}: ${item.message}`).join('\n')+(failed.length>10?`\nAnd ${failed.length-10} more failed files.`:'')+(skippedNote?`\n${skippedNote}`:'')+(retained?'\nOnly failed or waiting books remain selected. Saved books will not be imported again by Retry/Continue.':'\nChoose the failed or waiting files again; the file picker could not retain them.'):(retained?'':'Choose the waiting files again; the file picker could not retain them.');}
+    else{$('book-files').value='';$('upload-dialog').close();toast(`${saved||!skipped.length?`${saved} ${saved===1?'book has':'books have'} found a home. `:''}${skippedNote}${fallbackCount?` Embedded details or covers were unavailable for ${fallbackCount}; you can edit their details.`:''}`.trim());}
+  }catch(error){$('upload-error').textContent=storageError(error)+' Earlier books in this batch remain saved.';}
+  finally{importRun=null;busy=false;$('save-book').disabled=false;$('book-files').disabled=false;$('pause-import').hidden=true;$('save-book').textContent=remaining.length?(run.paused?'Continue remaining books →':'Retry remaining books →'):'Add to my library →';if(!started)$('import-status').textContent='';render();resetIdle();}
 }
-function bookButton(book) {
-  const btn = el('button', 'book');
-  btn.onclick = () => showDetail(book.id);
-  const cover = el('div', 'book-cover'); cover.style.setProperty('--book-color', book.color);
-  cover.append(el('span', '', book.title), el('span', 'book-ornament', '✦'), el('span', 'book-format', book.format));
-  if (book.cover) {
-    const img = el('img'); img.src = book.cover; img.alt = '';
-    cover.append(img);
-  }
-  const pct = Math.round(book.progress?.percent || 0); const remaining = 100 - pct; const progressNote = pct ? ` · ${pct}% read · ${remaining}% left` : ''; const daysAgo = book.lastRead ? Math.floor((Date.now() - book.lastRead) / 86400000) : null; const lastReadNote = daysAgo != null ? (daysAgo === 0 ? ' · last read today' : daysAgo === 1 ? ' · last read yesterday' : ' · last read ' + daysAgo + 'd ago') : ''; const formatNote = book.format ? ` · ${book.format}` : ''; const sizeNote = book.size ? ` · ${size(book.size)}` : ''; const pagesNote = book.pages ? ` · ${book.pages} pages` : ''; const remPages = book.pages && pct && pct < 100 ? Math.max(0, Math.round(book.pages * remaining / 100)) : null; const remMins = remPages ? Math.max(1, Math.round(remPages * 1.5)) : null; const remTimeNote = remMins ? (remMins >= 60 ? ` · ~${Math.floor(remMins/60)}h ${remMins%60}m left` : ` · ~${remMins} min left`) : ''; const languageNote = book.language ? ` · ${book.language}` : ''; const seriesNote = book.series ? ` · ${book.series}${book.seriesNumber ? ' #' + book.seriesNumber : ''}` : ''; const yearNote = book.year ? ` · ${book.year}` : ''; const publisherNote = book.publisher ? ` · ${book.publisher}` : ''; const tagsNote = (book.tags && book.tags.length) ? ` · Tags: ${book.tags.slice(0,5).join(', ')}${book.tags.length > 5 ? '…' : ''}` : ''; const statusNote = book.status && book.status !== 'unread' ? ` · ${book.status}` : ''; const ratingNote = book.rating ? ` · ${'★'.repeat(book.rating)}` : ''; const notesNote = book.notes ? ' · has notes' : ''; const addedDays = book.added ? Math.floor((Date.now() - book.added) / 86400000) : null; const addedNote = addedDays != null ? (addedDays === 0 ? ' · added today' : addedDays === 1 ? ' · added yesterday' : ' · added ' + addedDays + 'd ago') : ''; const sourceNote = book.sourceFormat ? ' · from ' + book.sourceFormat : ''; const fileNote = book.filename && book.filename !== book.title ? ' · ' + book.filename : ''; const shelf = shelves.find(s => s.id === book.shelfId); const coverNote = book.cover ? ' · custom cover' : ''; const loc = book.progress?.location; const locNote = loc != null ? ' · at ' + (book.format === 'PDF' ? 'page' : 'chapter') + ' ' + (loc + 1) : ''; const remPagesNote = remPages != null && remPages > 0 ? ' · ~' + remPages + ' pages left' : ''; const totalMins = book.pages ? Math.max(1, Math.round(book.pages * 1.5)) : null; const totalTimeNote = totalMins ? ' · ~' + totalMins + ' min total' : ''; const shelfNote = shelf ? ' · ' + shelf.name : '';
-  btn.title = book.title + (book.author ? ' by ' + book.author : '') + progressNote + lastReadNote + formatNote + sizeNote + pagesNote + remTimeNote + languageNote + seriesNote + yearNote + publisherNote + tagsNote + statusNote + ratingNote + notesNote + addedNote + sourceNote + fileNote + coverNote + locNote + remPagesNote + totalTimeNote + shelfNote;
-  btn.setAttribute('aria-label', btn.title);
-  btn.append(cover, el('span', 'book-title', book.title), el('span', 'book-author', book.author || ''));
-  return btn;
-}
-async function showDetail(id) {
-  const book = books.find(b => b.id === id); if (!book) return;
-  activeBook = book;
+async function makeCover(file){if(!['image/jpeg','image/png','image/webp'].includes(file.type)||file.size>10*1024*1024)throw new Error('Choose a JPEG, PNG or WebP image under 10 MB.');const image=await createImageBitmap(file);try{if(!image.width||!image.height||image.width*image.height>50000000)throw new Error('Choose a smaller cover image.');const canvas=document.createElement('canvas');const scale=Math.min(1,720/Math.max(image.width,image.height));canvas.width=Math.max(1,Math.round(image.width*scale));canvas.height=Math.max(1,Math.round(image.height*scale));canvas.getContext('2d').drawImage(image,0,0,canvas.width,canvas.height);return canvas.toDataURL('image/jpeg',.82);}finally{image.close();}}
+async function updateBook(id, changes) { const vaultKey = key; const task = metadataQueue.catch(() => {}).then(async () => { if (!vaultKey || key !== vaultKey) throw new Error('The library is locked'); const book = books.find(b => b.id === id), record = await getRecord(id); if (!book || !record) throw new Error('Book not found'); const patch=typeof changes==='function'?changes(book):changes;const next = {...book,...patch};if(patch.progress?.percent===100)next.status="finished"; record.meta = await seal(encoder.encode(JSON.stringify(next)),vaultKey); await transaction(['books'], tx => tx.objectStore('books').put(record)); if (key === vaultKey) { books = books.map(b => b.id === id ? next : b); refreshLibrary(); } return next; }); metadataQueue = task.catch(() => {}); return task; }
+// fromReader: opened with "Book details" inside the reader; edit only (no open, download or remove).
+function showDetail(id, fromReader = false) {
+  activeBook = id; const book = books.find(b => b.id === id); if (!book) return;
   const content = $('book-detail'); content.replaceChildren();
   const cover = el('div','detail-cover'); cover.style.setProperty('--book-color',book.color); cover.append(el('span','',book.title),el('span','book-ornament','✦'),el('span','book-format',book.format));
-  if (book.cover) { const img = el('img'); img.src = book.cover; img.alt = ''; cover.append(img); }
+  if (/^data:image\/jpeg;base64,[A-Za-z0-9+/=]+$/.test(book.cover||'')) {const image=el('img','detail-cover-image');image.src=book.cover;image.alt='';cover.append(image);}
   const pct = Math.round(book.progress?.percent || 0); const remaining = 100 - pct; const progressMeta = pct ? ` · ${pct}% read · ${remaining}% left` : ''; const totalMins = book.pages ? Math.max(1, Math.round(book.pages * 1.5)) : null; const totalTimeMeta = totalMins ? ` · ~${totalMins} min total` : '';
   const remPages = book.pages && pct && pct < 100 ? Math.max(0, Math.round(book.pages * remaining / 100)) : null;
-  const remMins = remPages ? Math.max(1, Math.round(remPages * 1.5)) : null; const remTimeMeta = remMins ? (remMins >= 60 ? ` · ~${Math.floor(remMins/60)}h ${remMins%60}m left` : ` · ~${remMins} min left`) : '';
+  const remMins = remPages ? Math.max(1, Math.round(remPages * 1.5)) : null;
+  const remTimeMeta = remMins ? (remMins >= 60 ? ` · ~${Math.floor(remMins/60)}h ${remMins%60}m left` : ` · ~${remMins} min left`) : '';
   content.append(cover,el('h2','detail-title',book.title),el('p','detail-meta',`${book.author}\n${book.format}${book.pages?' · '+book.pages+' pages':''} · ${size(book.size)} · ${book.rating ? '★'.repeat(book.rating) : 'Not rated'}${progressMeta}${remTimeMeta}${totalTimeMeta}`));
-  const row = el('div','form-row');
-  const title = field('Title',el('input')); title.value = book.title; title.maxLength = 200;
-  const author = field('Author',el('input')); author.value = book.author || ''; author.maxLength = 200;
-  row.append(title, author);
-  content.append(row);
+  const actions = el('div','detail-actions'), read = el('button','primary','Open book →'), download = el('button','secondary',book.sourceFormat ? 'Download EPUB ↓' : 'Download original ↓'); if (book.sourceFormat) download.title = `Converted from ${book.sourceFilename || book.sourceFormat} when imported; the original file was not kept.`; read.onclick = () => readBook(id); download.onclick = () => downloadBook(id); actions.append(read,download); if (!fromReader) content.append(actions);
+  content.append(el('p','fine','Read and listen inside your library. Downloaded originals are unencrypted files.'));
+  const form = el('form','detail-form');
+  function field(labelText, input) { const label = el('label','',labelText); label.append(input); form.append(label); return input; }
+  const title = field('Title',el('input')); title.value = book.title; title.required = true; title.maxLength = 200;
+  const author = field('Author',el('input')); author.value = book.author; author.maxLength = 200;
   const publisher=field('Publisher (for citations)',el('input'));publisher.maxLength=200;publisher.value=book.publisher||'';
-  const language=field('Language',el('input'));language.maxLength=40;language.value=book.language||'';
+  const row = el('div','form-row'); form.append(row);
+  const shelfSelect = el('select'); fillShelves(shelfSelect,book.shelfId); const shelfLabel = el('label','','Shelf'); shelfLabel.append(shelfSelect); row.append(shelfLabel);
   const status = el('select'); for (const [value,text] of [['unread','To read'],['reading','Currently reading'],['finished','Finished']]) { const o = el('option','',text); o.value = value; status.append(o); } status.value = book.status; const statusLabel = el('label','','Reading status'); statusLabel.append(status); row.append(statusLabel);
   const rating = field('Rating',el('select')); for (let n = 0; n <= 5; n++) { const o = el('option','',n ? '★'.repeat(n) : 'Not rated'); o.value = n; rating.append(o); } rating.value = book.rating;
   const notes = field('Reading note / bookmark',el('input')); notes.value = book.notes || ''; notes.maxLength = 1000; notes.placeholder = 'e.g. Continue at page 42…';
   const series=field('Series',el('input'));series.maxLength=200;series.value=book.series||'';const year=field('Release year',el('input'));year.type='number';year.min=0;year.max=9999;year.value=book.year||'';const tags=field('Tags',el('input'));tags.maxLength=400;tags.value=(book.tags||[]).join(' ');
+  const coverInput=field('Custom cover (JPEG, PNG or WebP, up to 10 MB)',el('input'));coverInput.type='file';coverInput.accept='image/jpeg,image/png,image/webp';const clearCover=field('Remove custom cover',el('input'));clearCover.type='checkbox';
   const seriesNumber=field('Number in series',el('input'));seriesNumber.maxLength=30;seriesNumber.value=book.seriesNumber||'';
-  content.append(publisher,language,series,seriesNumber,year,tags,notes);
+  let importedCover;
   if(['EPUB','PDF'].includes(book.format)&&window.ThingsImport){
-    const coverBtn = el('button','secondary','Extract cover from book');
-    coverBtn.onclick = async () => {
-      let data;
+    const detect=el('button','secondary','Read embedded book details');detect.type='button';
+    detect.onclick=async()=>{if(busy)return;busy=true;detect.disabled=true;let data;try{
       data=await (await bookBlob(id)).arrayBuffer();const embedded=book.format==='PDF'?await window.ThingsImport.pdf(data):await window.ThingsImport.epub(data,makeCover);
-      if (embedded?.cover) { await updateBook(id, {cover: embedded.cover}); toast('Cover extracted.'); showDetail(id); }
-      else toast('No embedded cover found.');
-    };
-    content.append(coverBtn);
+      if(embedded.title)title.value=embedded.title;if(embedded.author)author.value=embedded.author;if(embedded.series)series.value=embedded.series;if(embedded.seriesNumber)seriesNumber.value=embedded.seriesNumber;if(embedded.year)year.value=embedded.year;
+      if(embedded.cover){importedCover=embedded.cover;clearCover.checked=false;let image=cover.querySelector('img');if(!image){image=el('img','detail-cover-image');image.alt='';cover.append(image);}image.src=embedded.cover;}
+      toast('Embedded details filled in. Choose Save details to keep them.'+(embedded.warnings.length?' Some embedded details or the cover were unavailable.':''));
+    }catch{toast('Embedded details could not be read. You can enter details yourself.');}finally{if(data)new Uint8Array(data).fill(0);busy=false;detect.disabled=false;}};
+    form.append(detect);
   }
-  const save = el('button','primary wide','Save details →');
-  save.onclick = async () => {
-    busy = true;
-    try {
-      await updateBook(id, {
-        title: title.value.trim() || book.title,
-        author: author.value.trim(),
-        publisher: publisher.value.trim(),
-        language: language.value.trim(),
-        status: status.value,
-        rating: Number(rating.value),
-        notes: notes.value.trim(),
-        series: series.value.trim(),
-        seriesNumber: seriesNumber.value.trim(),
-        year: year.value ? Number(year.value) : undefined,
-        tags: tags.value.trim() ? tags.value.trim().split(/\s+/).filter(Boolean) : [],
-        detailsTidied: 1
-      });
-      toast('Details saved.');
-      $('detail-dialog').close();
-      render();
-    } catch (e) { toast(storageError(e)); } finally { busy = false; }
-  };
-  content.append(save);
-  const open = el('button','primary wide','Open in reader →'); open.onclick = () => readBook(id);
-  content.append(open);
-  const remove = el('button','text-button','Remove from library');
-  remove.onclick = async () => {
-    if (!confirm('Remove "'+book.title+'" from your library? This cannot be undone.')) return;
-    busy = true;
-    try {
-      await transaction(['books','chunks','ocr'], tx => deleteBooks(tx, [id]));
-      books = books.filter(b => b.id !== id);
-      toast('Book removed.');
-      $('detail-dialog').close();
-      render();
-    } catch (e) { toast(storageError(e)); } finally { busy = false; }
-  };
-  content.append(remove);
-  $('detail-dialog').showModal();
+  const save = el('button','primary wide','Save details'); form.append(save);
+  form.onsubmit = async e => { e.preventDefault(); if (busy) return; busy = true; save.disabled = true; try { if (!title.value.trim()) throw new Error('Enter a title.'); let customCover=importedCover===undefined?book.cover||null:importedCover;if(clearCover.checked)customCover=null;if(coverInput.files[0])customCover=await makeCover(coverInput.files[0]);await updateBook(id,{cover:customCover,title:title.value.trim(),author:author.value.trim() || 'Unknown author',publisher:publisher.value.trim(),shelfId:shelfSelect.value,status:status.value,rating:Number(rating.value),notes:notes.value,series:series.value.trim(),seriesNumber:seriesNumber.value.trim(),year:year.value?Number(year.value):null,detailsTidied:1,tags:window.SanctuaryCore?.tags(tags.value)||[]}); $('detail-dialog').close(); toast('Book details saved.'); } catch(e) { toast(e.message === 'Enter a title.' ? e.message : storageError(e)); } finally { busy = false; save.disabled = false; } };
+  content.append(form); const remove = el('button','text-button danger','Remove this book'); remove.onclick = async () => { if (busy || !confirm(`Remove “${book.title}” and its stored file from this library?`)) return; busy = true; try { await transaction(['books','chunks','ocr'],tx => deleteBooks(tx,[id])); books = books.filter(b => b.id !== id); $('detail-dialog').close(); render(); toast('Book removed.'); } catch(e) { toast(storageError(e)); } finally { busy = false; } }; if (!fromReader) content.append(remove);
+  if (!$('detail-dialog').open) $('detail-dialog').showModal();
 }
-function field(label, input) {
-  const wrap = el('label');
-  wrap.append(el('span','',label), input);
-  return wrap;
+async function nativeTransfer(blob, filename, mode) {
+  const bridge = window.ThingsBookAndroid;
+  if (!bridge.beginTransfer(filename,blob.type,mode)) throw new Error('Finish the current file save first.');
+  try { for (let offset = 0; offset < blob.size; offset += 96 * 1024) {
+    const chunk = await blob.slice(offset,offset + 96 * 1024).arrayBuffer();
+    if (!bridge.writeChunk(b64(chunk))) throw new Error('Could not stage this file. Check free space.');
+  } if (!bridge.finishTransfer()) throw new Error('Could not finish staging this file.'); }
+  catch(e) { bridge.cancelTransfer(); throw e; }
 }
-async function updateBook(id, changes) {
-  const book = books.find(b => b.id === id);
-  if (!book) return;
-  Object.assign(book, changes);
-  const meta = await sealJSON(book);
-  await transaction(['books'], tx => tx.objectStore('books').put({id, meta, chunks: book.chunks}));
-}
-async function readBook(id) {
-  if (busy) return; busy = true;
+async function downloadBlob(blob, filename) { if (window.ThingsBookAndroid) return nativeTransfer(blob,filename,'export'); const url = URL.createObjectURL(blob), a = el('a'); a.href = url; a.download = filename; document.body.append(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(url),60000); }
+// Restore, bounded in memory: each piece (or whole-file book) of a backup is read from the file, verified
+// with the backup's key and written to the "staging" store, one at a time; swapStaged() then replaces the
+// library in one transaction. Until that transaction commits, the existing library is untouched.
+async function clearStaging() { await transaction(['staging'],tx => tx.objectStore('staging').clear()); }
+async function stageRestore(pending,vaultKey) {
+  await clearStaging();
   try {
-    const book = books.find(b => b.id === id), blob = (book?.format === 'PDF' && await bookSource(id)) || await bookBlob(id);
-    if (book.status === 'unread') await updateBook(id, {status: 'reading'});
-    await closeReader();
-    $('detail-dialog').close();
-    $('reader-title').textContent = book.title;
-    $('reader-dialog').showModal();
-    await ThingsReader.open(blob, book, async (progress) => {
-      await updateBook(id, {progress, lastRead: Date.now()});
-      libraryNeedsRender = true;
-    });
-  } catch (e) { toast('Could not open the book. ' + (e.message || '')); } finally { busy = false; resetIdle(); }
-}
-async function bookSource(id) {
-  const record = await getRecord(id);
-  if (!record) return null;
-  if (record.chunks) {
-    const parts = [];
-    for (let i = 0; i < record.chunks; i++) {
-      const chunk = await getChunk(id, i);
-      if (!chunk) throw new Error('Missing chunk');
-      parts.push(await unseal(chunk));
+    for (const record of pending.books) {
+      // Recognized text is a convenience: keep the records that verify for this book and page, drop the rest.
+      record.verifiedOcr = [];
+      for (const item of record.ocr || []) { try { const value = await ThingsVault.readJSON(item,vaultKey); if (value.book === record.id && value.page === item.page) record.verifiedOcr.push({book:record.id,page:item.page,iv:item.iv,data:item.data}); } catch {} }
+      if (record.chunks) {
+        if (!ThingsChunks.valid(record.chunks) || record.parts?.length !== record.chunks.count) throw new Error('damaged');
+        for (const [index,part] of record.parts.entries()) {
+          const piece = {book:record.id,index,iv:part.iv,data:await ThingsBackup.load(pending.file,part)};
+          await ThingsChunks.piece(record,vaultKey,() => piece,index);
+          await transaction(['staging'],tx => tx.objectStore('staging').put(piece));
+        }
+      } else {
+        const file = {iv:record.file.iv,data:await ThingsBackup.load(pending.file,record.file)};
+        await unseal(file,vaultKey);
+        await transaction(['staging'],tx => tx.objectStore('staging').put({book:record.id,index:-1,...file}));
+      }
     }
-    return new Blob(parts);
-  }
-  return record.file ? new Blob([await unseal(record.file)]) : null;
-}
-async function bookBlob(id) {
-  const source = await bookSource(id);
-  return source || new Blob([]);
-}
-function fillShelves(select, selected) {
-  select.replaceChildren();
-  for (const shelf of shelves) {
-    const o = el('option','',shelf.name); o.value = shelf.id;
-    if (shelf.id === selected) o.selected = true;
-    select.append(o);
+  } catch (error) {
+    await clearStaging().catch(() => {});
+    if (/quota|space/i.test(`${error?.name} ${error?.message}`)) throw new Error(storageError(error));
+    throw new Error('A book in this backup could not be verified, so the backup may be damaged or incomplete. Your existing library is unchanged.');
   }
 }
-function openUpload(files) {
-  if (busy) return;
-  $('upload-dialog').showModal();
-  fillShelves($('shelf-select'), shelves[0]?.id);
-  if (files) $('book-files').files = files;
-  $('file-summary').textContent = files ? files.length + ' file' + (files.length>1?'s':'') + ' selected' : 'Choose one book to customize its details, or several to import together.';
+function swapStaged(tx,pending) {
+  const books = tx.objectStore('books'), chunks = tx.objectStore('chunks'), staging = tx.objectStore('staging'), byId = new Map(pending.books.map(record => [record.id,record]));
+  books.clear(); chunks.clear(); tx.objectStore('ocr').clear(); /* recognized text belonged to the replaced library */
+  for (const record of pending.books) { if (record.chunks) books.put({id:record.id,meta:record.meta,chunks:record.chunks}); for (const item of record.verifiedOcr || []) tx.objectStore('ocr').put(item); }
+  const cursor = staging.openCursor();
+  cursor.onsuccess = () => { const current = cursor.result; if (!current) { staging.clear(); return; } const value = current.value; if (value.index < 0) books.put({id:value.book,meta:byId.get(value.book).meta,file:{iv:value.iv,data:value.data}}); else chunks.put(value); current.continue(); };
 }
-$('add-book').onclick = () => openUpload();
-$('unlock-form').onsubmit = unlock;
-$('new-shelf').onclick = () => { $('shelf-dialog').showModal(); $('shelf-name').focus(); };
-$('shelf-form').onsubmit = async e => { e.preventDefault(); const name = $('shelf-name').value.trim(); if (!name) return; busy = true; try { await saveShelves([...shelves,{id:crypto.randomUUID(),name}]); $('shelf-dialog').close(); if ($('upload-dialog').open) fillShelves($('shelf-select'),shelves.at(-1).id); render(); toast('Your new shelf is ready.'); } catch(e) { $('shelf-error').textContent = storageError(e); } finally { busy = false; } };
+async function bookBlob(id) { const record = await getRecord(id), book = books.find(b => b.id === id); if (!record || !book) throw new Error('Missing book file'); const mime = book.format === 'PDF' ? 'application/pdf' : book.format === 'EPUB' ? 'application/epub+zip' : 'text/plain'; if (record.chunks) { let blob = new Blob([],{type:mime}); for (let index = 0; index < record.chunks.count; index++) blob = new Blob([blob,await ThingsChunks.piece(record,key,i => getChunk(id,i),index)],{type:mime}); return blob; } /* one decrypted piece held at a time */ return new Blob([await unseal(record.file)],{type:mime}); }
+// A chunked book read by byte range: only the pieces asked for are decrypted, and the last few are
+// cached. Used to open large PDFs without loading the whole file. close() drops the cache.
+async function bookSource(id) {
+  const record = await getRecord(id), book = books.find(b => b.id === id), vaultKey = key;
+  if (!record?.chunks || !book || !vaultKey) return null;
+  const SIZE = ThingsChunks.SIZE, size = record.chunks.bytes, cache = new Map(), stats = {decrypted:0,delivered:0};
+  // pdf.js can request dozens of ranges at once; decrypting one piece at a time keeps memory to a few pieces.
+  let turn = Promise.resolve();
+  const decrypt = index => { const run = turn.then(() => key === vaultKey ? ThingsChunks.piece(record,vaultKey,i => getChunk(id,i),index) : Promise.reject(new Error('The library is locked.'))); turn = run.catch(() => {}); return run; };
+  const piece = index => {
+    let pending = cache.get(index);
+    if (pending) cache.delete(index);
+    else if (key !== vaultKey) pending = Promise.reject(new Error('The library is locked.')); /* no decryption after locking */
+    else { pending = decrypt(index); stats.decrypted++; pending.catch(() => cache.delete(index)); }
+    cache.set(index,pending);
+    while (cache.size > 4) cache.delete(cache.keys().next().value);
+    return pending;
+  };
+  return {size,type:'application/pdf',stats,
+    async read(begin,end) {
+      begin = Math.max(0,begin); end = Math.min(size,end);
+      const out = new Uint8Array(Math.max(0,end - begin));
+      for (let index = Math.floor(begin / SIZE); index * SIZE < end; index++) {
+        const bytes = new Uint8Array(await piece(index)), start = index * SIZE;
+        const from = Math.max(begin,start) - start, to = Math.min(end,start + bytes.length) - start;
+        out.set(bytes.subarray(from,to),start + from - begin);
+      }
+      stats.delivered += out.length;
+      return out;
+    },
+    async arrayBuffer() { return (await bookBlob(id)).arrayBuffer(); },
+    close() { cache.clear(); }};
+}
+async function downloadBook(id) { if (busy) return; busy = true; try { const book = books.find(b => b.id === id); await downloadBlob(await bookBlob(id),book.filename); toast(book.sourceFormat ? (window.ThingsBookAndroid ? 'Choose where to save the converted EPUB. This copy is unencrypted.' : 'Converted EPUB downloaded. Keep this unencrypted copy somewhere private.') : window.ThingsBookAndroid ? 'Choose where to save your original. This copy is unencrypted.' : 'Original downloaded. Keep this unencrypted copy somewhere private.'); } catch { toast('Could not decrypt or save this book. Check free space and try again.'); } finally { busy = false; resetIdle(); } }
+async function readBook(id) { if (busy) return; busy = true; try { const book = books.find(b => b.id === id), blob = (book?.format === 'PDF' && await bookSource(id)) || await bookBlob(id); if (book.status === 'unread') await updateBook(id,{status:'reading'}); await closeReader(); $('detail-dialog').close(); if (!$('reader-dialog').open) $('reader-dialog').showModal(); await ThingsReader.open(book,blob,changes => updateBook(id,changes)); } catch(e) { const message=e.message || 'Could not open this book. Check its format or download the original.'; $('reader-message').textContent=message;const notice=el('p','reading-error',message);$('reader-content').replaceChildren(notice);$('reader-save-status').textContent='Book could not be opened';toast(message); } finally { busy = false; resetIdle(); } }
+async function prepareBackup() {
+  if (busy || !key) return;
+  busy = true;
+  try {
+    await closeReader(); await metadataQueue;
+    $('reader-dialog').close();
+    const recovery = config.recovery ? decoder.decode(await unseal(config.recovery)) : '';
+    $('backup-recovery').value = recovery;
+    $('backup-storage').textContent = storageDescription(await ThingsStorage.inspect(0)) + ' Backup files are larger than the originals because of encryption and encoding. Check space in your chosen save folder; its free space is not reported here.';
+    $('backup-dialog').showModal();
+  } catch { toast('Could not prepare your backup. Check free space and try again.'); }
+  finally { busy = false; resetIdle(); }
+}
+async function downloadRecovery() {
+  if (busy || !key || !$('backup-recovery').value) return;
+  busy = true;
+  try {
+    const text = 'ThingsBook recovery code\n\n'+$('backup-recovery').value+'\n\nKeep this separately from your encrypted .thingsbook backup. Anyone with both can read that backup. Use the exact code, including hyphens, when restoring on another device. Clearing app data or uninstalling can remove device access.\n';
+    await downloadBlob(new Blob([text],{type:'text/plain'}),'ThingsBook-recovery-code.txt');
+    toast('Save the recovery code somewhere safe, separately from the backup.');
+  } catch { toast('Recovery code was not saved. Try again before moving your library.'); }
+  finally { busy = false; resetIdle(); }
+}
+// Ciphertext sizes of every stored book, reading one record at a time.
+async function recordSizes() { return new Promise((resolve,reject) => {
+  const sizes = [], cursor = db.transaction('books').objectStore('books').openCursor();
+  cursor.onerror = () => reject(cursor.error);
+  cursor.onsuccess = () => { const current = cursor.result; if (!current) { resolve(sizes); return; } const r = current.value; sizes.push({id:r.id,meta:r.meta.data.byteLength,file:r.chunks ? ThingsChunks.sealedBytes(r.chunks) : r.file.data.byteLength,chunked:!!r.chunks}); current.continue(); };
+}); }
+// Small libraries of whole-file books keep backup version 1 so older releases can restore them.
+// Larger libraries, and any library with chunked books (which version 1 cannot hold), stream as version 2.
+async function backupBlob(created) { const sizes = await recordSizes(), recognizedText = await request(db.transaction('ocr').objectStore('ocr').count()) > 0; if (!recognizedText && !sizes.some(s => s.chunked) && ThingsBackup.fitsLegacy(sizes,config)) return ThingsBackup.legacy(await allRecords(),config,created); return ThingsBackup.stream(config,sizes.map(s => s.id),async id => { const record = await getRecord(id); if (record) record.ocr = (await request(db.transaction('ocr').objectStore('ocr').getAll(chunkRange(id)))).map(r => ({page:r.page,iv:r.iv,data:r.data})); if (record?.chunks) { /* two passes: piece details first, then one piece's bytes at a time */ record.partInfo = []; for (let index = 0; index < record.chunks.count; index++) { const part = await getChunk(id,index); if (!part) throw new Error('A book file is incomplete. Restore it from a backup before backing up.'); record.partInfo.push({book:part.book,index:part.index,iv:part.iv,size:part.data.byteLength}); } record.partData = index => getChunk(id,index); } return record; },created); }
+async function backup() { if (busy || !key) return; busy = true; try { await closeReader(); await metadataQueue; const created = new Date().toISOString(); await downloadBlob(await backupBlob(created),`ThingsBook-backup-${created.slice(0,10)}.thingsbook`); $('backup-dialog').close(); $('backup-recovery').value = ''; toast(window.ThingsBookAndroid ? 'Choose where to save your encrypted backup. Keep its recovery code separately.' : 'Encrypted backup exported. Keep the recovery code separately for another device.'); } catch { toast('Could not export the backup. Check free space, close other apps and try again.'); } finally { busy = false; resetIdle(); } }
+async function restoreFile(file) { if (!file || busy) return; busy = true; try {
+  const restored = await ThingsBackup.read(file,{lazy:true}); // version 1 or 2, fully validated; version 2 books are indexed, not loaded
+  restored.file = file;
+  if (config && !confirm(`Restore ${restored.books.length} books? This replaces the library on this device only after every book is verified. Export a current backup first to keep both collections. Continue?`)) return;
+  pendingBackup = restored; busy = false; await lock(); gateState(); toast('Enter the recovery code or original backup password. Your existing library stays intact until verification succeeds.');
+} catch (e) { toast(e?.code === 'newer' || e?.code === 'truncated' ? e.message : 'This is not a valid ThingsBook encrypted backup.'); } finally { busy = false; $('backup-file').value = ''; } }
+async function init() {
+  try { if (!crypto.subtle || !window.indexedDB) throw new Error('Use Start ThingsBook.cmd to open this app at its localhost address.');
+    // Version 2 adds the "chunks" store, version 3 "staging" and version 4 "ocr"; existing settings and books are untouched.
+    const opening = indexedDB.open(DB_NAME,DB_VERSION); opening.onupgradeneeded = () => { if(!opening.result.objectStoreNames.contains('settings'))opening.result.createObjectStore('settings');if(!opening.result.objectStoreNames.contains('books'))opening.result.createObjectStore('books',{keyPath:'id'});if(!opening.result.objectStoreNames.contains('chunks'))opening.result.createObjectStore('chunks',{keyPath:['book','index']});if(!opening.result.objectStoreNames.contains('staging'))opening.result.createObjectStore('staging',{keyPath:['book','index']});if(!opening.result.objectStoreNames.contains('ocr'))opening.result.createObjectStore('ocr',{keyPath:['book','page']}); }; db = await request(opening); db.onversionchange = () => { db.close(); location.reload(); }; config = await request(db.transaction('settings').objectStore('settings').get('vault')); hasDeviceAccess = !!(config && await request(db.transaction('settings').objectStore('settings').get('device-access'))); gateState();
+  } catch(e) { $('gate-error').textContent = e.message || 'Browser storage is unavailable. Use a normal browser window.'; $('unlock-button').disabled = true; return; }
+  $('unlock-form').addEventListener('submit',unlock); $('lock').onclick = lock;
+  $('cancel-restore').onclick = () => { if (!busy) { pendingBackup = null; gateState(); } };
+  $('backup-download').onclick = backup;
+  $('backup-copy').onclick = () => { navigator.clipboard?.writeText($('backup-recovery').value).then(() => toast('Recovery code copied.')).catch(() => toast('Could not copy the recovery code.')); };
+  $('backup-dialog').addEventListener('close',() => { if (!$('backup-dialog').open) { $('backup-recovery').value = ''; } });
+  $('all-books').onclick = () => { filter = 'all'; render(); }; $('reading-filter').onclick = () => { filter = 'reading'; render(); };
+  $('search').oninput = scheduleLibrarySearch;
+  $('search').addEventListener('keydown', e => { if (e.key === 'Escape' && $('search').value) { e.preventDefault(); $('search').value = ''; scheduleLibrarySearch(); } });
+  new MutationObserver(()=>{if(!key){libraryNeedsRender=false;return;}if(libraryNeedsRender&&!$('reader-dialog').open)render();}).observe($('reader-dialog'),{attributes:true,attributeFilter:['open']}); $('sort').onchange = render;
+  function switchView(next) { view = next; for (const v of ['shelf','grid']) { $(`${v}-view`).classList.toggle('selected',view === v); $(`${v}-view`).setAttribute('aria-pressed',String(view === v)); } render(); }
+  $('shelf-view').onclick = () => switchView('shelf'); $('grid-view').onclick = () => switchView('grid');
+  $('add-book').onclick = () => openUpload(); $('upload-form').onsubmit = upload; $('pause-import').onclick=pauseImport; $('book-files').onchange = fileSummary;
+  $('new-shelf').onclick = () => { $('shelf-form').reset(); $('shelf-error').textContent = ''; $('shelf-dialog').showModal(); };
+  $('edit-shelves').onclick = openShelvesDialog; $('mobile-shelves').onclick = openShelvesDialog;
+  // Mobile users can create shelves from the upload form as well.
+  const addShelf = el('button','text-button','+ Create a new shelf'); addShelf.type = 'button'; addShelf.onclick = () => $('new-shelf').click(); $('shelf-select').after(addShelf);
+  $('shelf-form').onsubmit = async e => { e.preventDefault(); if (busy) return; const name = $('shelf-name').value.trim(); if (!name) return; busy = true; try { await saveShelves([...shelves,{id:crypto.randomUUID(),name}]); $('shelf-dialog').close(); if ($('upload-dialog').open) fillShelves($('shelf-select'),shelves.at(-1).id); render(); toast('Your new shelf is ready.'); } catch(e) { $('shelf-error').textContent = storageError(e); } finally { busy = false; } };
   document.querySelectorAll('[data-close]').forEach(btn => btn.onclick = () => { if (busy) { toast('Please wait for the current save to finish.'); return; } btn.closest('dialog').close(); });
   document.querySelectorAll('dialog').forEach(d => d.addEventListener('cancel',e => { if (busy) e.preventDefault(); })); $('reader-dialog').addEventListener('close',() => {if(!$('reader-dialog').open)closeReader().catch(() => toast('Reading position could not be saved.'));}); ThingsReader.init();
   const zone = $('drop-zone'); zone.onclick = () => openUpload(); zone.onkeydown = e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); openUpload(); } };
@@ -546,3 +651,6 @@ $('shelf-form').onsubmit = async e => { e.preventDefault(); const name = $('shel
   if (hasDeviceAccess) await unlock({preventDefault(){}});
 }
 init();
+
+
+
