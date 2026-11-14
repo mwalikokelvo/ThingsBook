@@ -18,6 +18,11 @@ Highlights include:
 
 No private books, backups, recordings, personal voice packs, model weights, account sessions, or Android signing material are included in this repository.
 
+## Working on this repository (assistants included)
+
+Read `AGENTS.md` first: work on a branch, and commit to `main` only when the owner asks or after the
+tests, the Tests workflow and a check in the app are all green.
+
 ## Repository layout
 
 - `outputs/ThingsBook/` — authoritative shared web application and platform assets.
