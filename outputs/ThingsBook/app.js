@@ -293,6 +293,7 @@ function compareBooks(sortBy, a, b, keys) {
     case 'year': return number(a.year, b.year, direction !== 'asc');
     case 'series': return text(a.series, b.series) || bookCollator.compare(String(a.seriesNumber || ''), String(b.seriesNumber || '')) || bookCollator.compare(a.title, b.title);
     case 'hasseries': return (direction === 'asc' ? (a.series ? 1 : 0) - (b.series ? 1 : 0) : (b.series ? 1 : 0) - (a.series ? 1 : 0)) || bookCollator.compare(a.title, b.title);
+    case 'haspublisher': return (direction === 'asc' ? (a.publisher ? 1 : 0) - (b.publisher ? 1 : 0) : (b.publisher ? 1 : 0) - (a.publisher ? 1 : 0)) || bookCollator.compare(a.title, b.title);
     case 'publisher': case 'language': case 'format': case 'filename': return text(a[field], b[field]) || bookCollator.compare(a.title, b.title);
     case 'status': return (statusRank(a) - statusRank(b)) * down || bookCollator.compare(a.title, b.title);
     case 'tags': return ((b.tags?.length || 0) - (a.tags?.length || 0)) * up || bookCollator.compare(a.title, b.title);
