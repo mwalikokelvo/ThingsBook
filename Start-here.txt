@@ -1,7 +1,7 @@
-ThingsBook 1.14.3 - start here
+ThingsBook 1.15.0 - start here
 
-Windows: ThingsBook-Independent-1.14.3.exe
-Android: ThingsBook-Android-1.14.3.apk
+Windows: ThingsBook-Independent-1.15.0.exe
+Android: ThingsBook-Android-1.15.0.apk
 Both are on the GitHub Releases page with checksums. Update Android over the existing
 installation; do not uninstall or clear app data, because that removes the private on-device
 library. Keep your existing private voice pack. The APK is signed with the original key.

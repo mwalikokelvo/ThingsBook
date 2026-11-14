@@ -233,100 +233,60 @@ function bookButton(book, index, grid) {
   const button = el('button',`book ${cover ? 'cover' : 'spine'}`);
   button.style.setProperty('--book-color', /^#[0-9a-f]{6}$/i.test(book.color) ? book.color : '#31534a');
   button.style.animationDelay = `${Math.min(index * .04, .4)}s`;
-  const pct = Math.round(book.progress?.percent || 0); const remaining = 100 - pct; const progressNote = pct ? ` · ${pct}% read · ${remaining}% left` : ''; const daysAgo = book.lastRead ? Math.floor((Date.now() - book.lastRead) / 86400000) : null; const lastReadNote = daysAgo != null ? (daysAgo === 0 ? ' · last read today' : daysAgo === 1 ? ' · last read yesterday' : ' · last read ' + daysAgo + 'd ago') : ''; const formatNote = book.format ? ` · ${book.format}` : ''; const sizeNote = book.size ? ` · ${size(book.size)}` : ''; const pagesNote = book.pages ? ` · ${book.pages} pages` : ''; const remPages = book.pages && pct && pct < 100 ? Math.max(0, Math.round(book.pages * remaining / 100)) : null; const remMins = remPages ? Math.max(1, Math.round(remPages * 1.5)) : null; const remTimeNote = remMins ? (remMins >= 60 ? ` · ~${Math.floor(remMins/60)}h ${remMins%60}m left` : ` · ~${remMins} min left`) : ''; const languageNote = book.language ? ` · ${book.language}` : ''; const seriesNote = book.series ? ` · ${book.series}${book.seriesNumber ? ' #' + book.seriesNumber : ''}` : ''; const yearNote = book.year ? ` · ${book.year}` : ''; const publisherNote = book.publisher ? ` · ${book.publisher}` : ''; const tagsNote = (book.tags && book.tags.length) ? ` · Tags: ${book.tags.slice(0,5).join(', ')}${book.tags.length > 5 ? '…' : ''}` : ''; const statusNote = book.status && book.status !== 'unread' ? ` · ${book.status}` : ''; const ratingNote = book.rating ? ` · ${'★'.repeat(book.rating)}` : ''; const notesNote = book.notes ? ' · has notes' : ''; const addedDays = book.added ? Math.floor((Date.now() - book.added) / 86400000) : null; const addedNote = addedDays != null ? (addedDays === 0 ? ' · added today' : addedDays === 1 ? ' · added yesterday' : ' · added ' + addedDays + 'd ago') : ''; const sourceNote = book.sourceFormat ? ' · from ' + book.sourceFormat : ''; const fileNote = book.filename && book.filename !== book.title ? ' · ' + book.filename : ''; const shelf = shelves.find(s => s.id === book.shelfId); const coverNote = book.cover ? ' · custom cover' : ''; const loc = book.progress?.location; const locNote = loc != null ? ' · at ' + (book.format === 'PDF' ? 'page' : 'chapter') + ' ' + (loc + 1) : ''; const remPagesNote = remPages != null && remPages > 0 ? ' · ~' + remPages + ' pages left' : ''; const totalMins = book.pages ? Math.max(1, Math.round(book.pages * 1.5)) : null; const totalTimeNote = totalMins ? ' · ~' + totalMins + ' min total' : ''; const shelfNote = shelf ? ' · ' + shelf.name : ''; button.title = `${book.title} — ${book.author}${progressNote}${lastReadNote}${formatNote}${sizeNote}${pagesNote}${languageNote}${seriesNote}${yearNote}${publisherNote}${ratingNote}${tagsNote}${statusNote}${notesNote}${addedNote}${sourceNote}${fileNote}${coverNote}${locNote}${remPagesNote}${remTimeNote}${totalTimeNote}${shelfNote}`; button.setAttribute('aria-label',`Open ${book.title} by ${book.author}${progressNote}${lastReadNote}${formatNote}${sizeNote}${pagesNote}${languageNote}${seriesNote}${yearNote}${publisherNote}${ratingNote}${tagsNote}${statusNote}${notesNote}${addedNote}${sourceNote}${fileNote}${coverNote}${locNote}${remPagesNote}${remTimeNote}${totalTimeNote}${shelfNote}`);
+  const read = Math.round(book.progress?.percent || 0); button.title = `${book.title} — ${book.author}${read ? ` · ${read}% read` : ''}`; button.setAttribute('aria-label',`Open ${book.title} by ${book.author}`);
   if(cover&&/^data:image\/jpeg;base64,[A-Za-z0-9+/=]+$/.test(book.cover||'')){button.classList.add('has-cover');const image=el('img','custom-cover');image.src=book.cover;image.alt='';image.loading='lazy';image.decoding='async';button.append(image);}
   if (cover) button.append(el('span','book-format',book.format),el('span','book-ornament','✦'));
   button.append(el('span','book-title',book.title),el('span','book-author',book.author==='Unknown author'&&!cover?'':book.author));
   if (cover) button.append(el('span','book-rating',book.rating ? '★'.repeat(book.rating) : 'THINGSBOOK'));
-  if (book.progress?.percent) { const bar = el('span','reading-progress'); const fill = el('i'); fill.style.width = Math.max(0,Math.min(100,book.progress.percent))+'%'; bar.append(fill); button.append(bar); const pctText = Math.round(book.progress.percent)+'% · '+(100-Math.round(book.progress.percent))+'% left' + (remTimeNote || '') + (locNote || ''); const pctLabel = el('span','progress-pct', pctText); button.append(pctLabel); }
+  if (book.progress?.percent) { const bar = el('span','reading-progress'); const fill = el('i'); fill.style.width = Math.max(0,Math.min(100,book.progress.percent))+'%'; bar.append(fill); button.append(bar); }
   if (!cover) button.style.height = `${170 + (index % 4) * 10}px`;
   button.addEventListener('click',() => showDetail(book.id));window.ThingsSanctuary?.decorateBook(button,book); return button;
 }
 function refreshLibrary(){if($('reader-dialog').open){libraryNeedsRender=true;return;}render();}
 function scheduleLibrarySearch(){clearTimeout(searchTimer);searchTimer=setTimeout(()=>{searchTimer=null;if(key)refreshLibrary();},120);}
-function remainingMinutes(book) {
-  const pct = Math.round(book.progress?.percent || 0);
-  if (!book.pages || pct >= 100) return Infinity;
-  const remPages = Math.max(0, Math.round(book.pages * (100 - pct) / 100));
-  return remPages ? Math.max(1, Math.round(remPages * 1.5)) : Infinity;
-}
-
-
-function estTime(book) {
-  const pages = book.pages || 0;
-  return pages ? Math.max(1, Math.round(pages * 1.5)) : 0;
+// Library sort orders. Text compares ignore case and accents and sort numbers naturally; books
+// missing the value (no year, no series…) go last in either direction.
+const bookCollator = new Intl.Collator(undefined, {sensitivity:'base', numeric:true});
+const timeLeft = book => { const pct = Math.min(100, book.progress?.percent || 0); return book.pages && pct < 100 ? book.pages * (100 - pct) / 100 : Infinity; };
+const statusRank = book => ({reading:0, unread:1, finished:2}[book.status] ?? 3);
+// " · about 3 h 20 min left" from pages and progress (about 1.5 minutes a page); empty when unknown.
+function readingLeft(book) { const pages = timeLeft(book); if (!Number.isFinite(pages)) return ''; const minutes = Math.max(1, Math.round(pages * 1.5)); return ` · about ${minutes >= 60 ? `${Math.floor(minutes / 60)} h ${minutes % 60} min` : `${minutes} min`} left`; }
+function libraryShuffle(sortBy, list) { if (sortBy !== 'random') return null; const keys = new Map(); for (const book of list) keys.set(book.id, Math.random()); return keys; }
+function compareBooks(sortBy, a, b, keys) {
+  const [field, direction] = sortBy.split('-'), down = direction === 'desc' ? -1 : 1, up = direction === 'asc' ? -1 : 1;
+  const text = (x, y) => { if (!x && !y) return 0; if (!x) return 1; if (!y) return -1; return down * bookCollator.compare(x, y); };
+  const number = (x, y, highFirst) => { const missing = v => v == null || v === '' || !Number.isFinite(Number(v)); if (missing(x) && missing(y)) return 0; if (missing(x)) return 1; if (missing(y)) return -1; return (highFirst ? Number(y) - Number(x) : Number(x) - Number(y)) * down; };
+  switch (field) {
+    case 'added': return (b.added || 0) - (a.added || 0);
+    case 'oldest': return (a.added || 0) - (b.added || 0);
+    case 'lastRead': return direction === 'asc' ? (a.lastRead || 0) - (b.lastRead || 0) : (b.lastRead || 0) - (a.lastRead || 0);
+    case 'title': return text(a.title, b.title);
+    case 'author': return text(a.author === 'Unknown author' ? '' : a.author, b.author === 'Unknown author' ? '' : b.author) || bookCollator.compare(a.title, b.title);
+    case 'rating': return direction === 'asc' ? (a.rating || 0) - (b.rating || 0) : (b.rating || 0) - (a.rating || 0);
+    case 'progress': return direction === 'asc' ? (a.progress?.percent || 0) - (b.progress?.percent || 0) : (b.progress?.percent || 0) - (a.progress?.percent || 0);
+    case 'remaining': { const x = timeLeft(a), y = timeLeft(b); return x === y ? (b.lastRead || 0) - (a.lastRead || 0) : x === Infinity ? 1 : y === Infinity ? -1 : x - y; }
+    case 'pages': return number(a.pages, b.pages, direction !== 'asc');
+    case 'size': return direction === 'asc' ? (a.size || 0) - (b.size || 0) : (b.size || 0) - (a.size || 0);
+    case 'year': return number(a.year, b.year, direction !== 'asc');
+    case 'series': return text(a.series, b.series) || bookCollator.compare(String(a.seriesNumber || ''), String(b.seriesNumber || '')) || bookCollator.compare(a.title, b.title);
+    case 'publisher': case 'language': case 'format': case 'filename': return text(a[field], b[field]) || bookCollator.compare(a.title, b.title);
+    case 'status': return (statusRank(a) - statusRank(b)) * down || bookCollator.compare(a.title, b.title);
+    case 'tags': return ((b.tags?.length || 0) - (a.tags?.length || 0)) * up || bookCollator.compare(a.title, b.title);
+    case 'notes': return ((b.notes || '').length - (a.notes || '').length) * up || bookCollator.compare(a.title, b.title);
+    case 'cover': return ((b.cover ? 1 : 0) - (a.cover ? 1 : 0)) * up || bookCollator.compare(a.title, b.title);
+    case 'random': return (keys?.get(a.id) || 0) - (keys?.get(b.id) || 0);
+    default: return 0;
+  }
 }
 function render() {
   clearTimeout(searchTimer);searchTimer=null;libraryNeedsRender=false;
   const query = $('search').value.trim().toLowerCase();const signature=filter+'|'+query;if(signature!==libraryQuery){libraryPage=0;libraryQuery=signature;}
   const found = books.filter(b => (filter === 'all' || (filter === 'reading' ? b.status === 'reading' : b.shelfId === filter)) && `${b.title} ${b.author} ${b.filename} ${b.notes || ''} ${b.format} ${b.series||''} ${(b.tags||[]).join(' ')}`.toLowerCase().includes(query));
-  found.sort((a,b) => {
-  const s = $('sort').value;
-  if (s === 'oldest') return (a.added || 0) - (b.added || 0);
-  if (s === 'largest') return (b.size || 0) - (a.size || 0);
-  if (s === 'smallest') return (a.size || 0) - (b.size || 0);
-  if (s === 'pages') return (b.pages || 0) - (a.pages || 0);
-if (s === 'pages-asc') return (a.pages || 0) - (b.pages || 0);
-  if (s === 'year') return (b.year || 0) - (a.year || 0) || a.title.localeCompare(b.title);
-  if (s === 'year-asc') return (a.year || 0) - (b.year || 0) || a.title.localeCompare(b.title);
-  if (s === 'series') return (a.series || '').localeCompare(b.series || '') || (a.seriesNumber || '').localeCompare(b.seriesNumber || '', undefined, {numeric: true}) || a.title.localeCompare(b.title);
-  if (s === 'series-desc') return (b.series || '').localeCompare(a.series || '') || (b.seriesNumber || '').localeCompare(a.seriesNumber || '', undefined, {numeric: true}) || a.title.localeCompare(b.title);
-  if (s === 'publisher') return (a.publisher || '').localeCompare(b.publisher || '') || a.title.localeCompare(b.title);
-  if (s === 'publisher-desc') return (b.publisher || '').localeCompare(a.publisher || '') || a.title.localeCompare(b.title);
-  if (s === 'language') return (a.language || '').localeCompare(b.language || '') || a.title.localeCompare(b.title);
-  if (s === 'language-desc') return (b.language || '').localeCompare(a.language || '') || a.title.localeCompare(b.title);
-  if (s === 'format') return (a.format || '').localeCompare(b.format || '') || a.title.localeCompare(b.title);
-  if (s === 'format-desc') return (b.format || '').localeCompare(a.format || '') || a.title.localeCompare(b.title);
-  if (s === 'filename') return (a.filename || '').localeCompare(b.filename || '') || a.title.localeCompare(b.title);
-  if (s === 'filename-desc') return (b.filename || '').localeCompare(a.filename || '') || a.title.localeCompare(b.title);
-  if (s === 'random') return Math.random() - 0.5;
-  if (s === 'lastRead') return (b.lastRead || 0) - (a.lastRead || 0);
-  if (s === 'lastRead-asc') return (a.lastRead || 0) - (b.lastRead || 0);
-  if (s === 'title') return a.title.localeCompare(b.title);
-  if (s === 'title-desc') return b.title.localeCompare(a.title);
-  if (s === 'author') return (a.author || '').localeCompare(b.author || '');
-  if (s === 'author-desc') return (b.author || '').localeCompare(a.author || '');
-  if (s === 'rating') return b.rating - a.rating;
-  if (s === 'rating-asc') return a.rating - b.rating;
-  if (s === 'remaining') {
-    const ra = remainingMinutes(a), rb = remainingMinutes(b);
-    if (ra === rb) return (b.lastRead || 0) - (a.lastRead || 0);
-    return ra - rb;
-  }
-  if (s === 'progress') return (b.progress?.percent || 0) - (a.progress?.percent || 0);
-  if (s === 'progress-asc') return (a.progress?.percent || 0) - (b.progress?.percent || 0);
-  if (s === 'tags') return (a.tags?.[0] || '').localeCompare(b.tags?.[0] || '') || a.title.localeCompare(b.title);
-  if (s === 'tags-desc') return (b.tags?.[0] || '').localeCompare(a.tags?.[0] || '') || a.title.localeCompare(b.title);
-  if (s === 'status') {
-    const order = {reading: 0, unread: 1, finished: 2};
-    return (order[a.status] ?? 9) - (order[b.status] ?? 9) || a.title.localeCompare(b.title);
-  }
-  if (s === 'status-desc') {
-    const order = {reading: 0, unread: 1, finished: 2};
-    return (order[b.status] ?? 9) - (order[a.status] ?? 9) || a.title.localeCompare(b.title);
-  }
-  if (s === 'esttime') return estTime(b) - estTime(a) || a.title.localeCompare(b.title);
-  if (s === 'esttime-asc') return estTime(a) - estTime(b) || a.title.localeCompare(b.title);
-  if (s === 'notes') {
-    const na = (a.notes || '').length, nb = (b.notes || '').length;
-    return nb - na || a.title.localeCompare(b.title);
-  }
-  if (s === 'notes-desc') {
-    const na = (a.notes || '').length, nb = (b.notes || '').length;
-    return na - nb || a.title.localeCompare(b.title);
-  }
-  if (s === 'seriesnum') return (a.seriesNumber || 999) - (b.seriesNumber || 999) || a.title.localeCompare(b.title);
-  if (s === 'seriesnum-desc') return (b.seriesNumber || 0) - (a.seriesNumber || 0) || a.title.localeCompare(b.title);
-  if (s === 'tagcount') return (b.tags?.length || 0) - (a.tags?.length || 0) || a.title.localeCompare(b.title);
-  if (s === 'tagcount-asc') return (a.tags?.length || 0) - (b.tags?.length || 0) || a.title.localeCompare(b.title);
-  if (s === 'cover') return (b.cover ? 1 : 0) - (a.cover ? 1 : 0) || a.title.localeCompare(b.title);
-  if (s === 'cover-desc') return (a.cover ? 1 : 0) - (b.cover ? 1 : 0) || a.title.localeCompare(b.title);
-  return b.added - a.added;
-});
+  const sortBy = $('sort').value, sortKeys = libraryShuffle(sortBy, found); found.sort((a,b) => compareBooks(sortBy, a, b, sortKeys) || (b.added || 0) - (a.added || 0));
   libraryPage=Math.max(0,Math.min(libraryPage,Math.ceil(found.length/60)-1));const visibleBooks=found.slice(libraryPage*60,(libraryPage+1)*60);window.ThingsSanctuary?.pages(found.length,libraryPage,next=>{libraryPage=next;render();});
   $('nav-count').textContent = books.length; $('total-books').textContent = books.length; $('total-shelves').textContent = shelves.length; $('total-reading').textContent = books.filter(b => b.status === 'reading').length; $('total-storage').textContent = size(books.reduce((n,b) => n + b.size + 16,0));
   const resume = [...books].filter(b => b.lastRead && b.status !== 'finished' && b.progress?.percent!==100).sort((a,b) => b.lastRead-a.lastRead)[0]; const resumeHost = $('continue-reading'); resumeHost.replaceChildren(); resumeHost.hidden = !resume;
-  if (resume) { const pct = Math.round(resume.progress?.percent || 0); const remPages = resume.pages && resume.progress?.percent ? Math.max(0, Math.round(resume.pages * (100 - resume.progress.percent) / 100)) : null; const remMins = remPages ? Math.max(1, Math.round(remPages * 1.5)) : null; const remNote = remMins ? (remMins >= 60 ? ` · ~${Math.floor(remMins/60)}h ${remMins%60}m left` : ` · ~${remMins} min left`) : ''; const text = el('div'); text.append(el('strong','',resume.title),el('p','',`${pct}% read · ${100 - pct}% left${remNote} · your next chapter is waiting`)); const button = el('button','primary','Continue reading →'); button.title = `Continue ${resume.title} · ${pct}% read · ${100 - pct}% left${remNote}`; button.setAttribute('aria-label', `Continue reading ${resume.title} by ${resume.author}, ${pct}% read, ${100 - pct}% left${remNote}`); button.onclick = () => readBook(resume.id); resumeHost.append(text,button); }
+  if (resume) { const text = el('div'); text.append(el('strong','',resume.title),el('p','',`${Math.round(resume.progress?.percent || 0)}% read${readingLeft(resume)} · your next chapter is waiting`)); const button = el('button','primary','Continue reading →'); button.onclick = () => readBook(resume.id); resumeHost.append(text,button); }
   const current = shelves.find(s => s.id === filter); $('location').textContent = current?.name || (filter === 'reading' ? 'Currently reading' : 'All books'); $('library-heading').textContent = current?.name || (filter === 'reading' ? 'Currently reading' : 'Your bookshelf'); $('result-count').textContent = books.length ? `${found.length} ${found.length === 1 ? 'book' : 'books'} · a little world of your own` : 'A collection that grows with you';
   $('all-books').classList.toggle('active',filter === 'all'); $('reading-filter').classList.toggle('active',filter === 'reading');
   $('shelf-nav').replaceChildren(); for (const shelf of shelves) { const btn = el('button',`nav-item ${filter === shelf.id ? 'active' : ''}`); btn.append(el('span','','▱'),document.createTextNode(shelf.name),el('b','',String(books.filter(b => b.shelfId === shelf.id).length))); btn.onclick = () => { filter = shelf.id; render(); }; $('shelf-nav').append(btn); }
@@ -458,11 +418,7 @@ function showDetail(id, fromReader = false) {
   const content = $('book-detail'); content.replaceChildren();
   const cover = el('div','detail-cover'); cover.style.setProperty('--book-color',book.color); cover.append(el('span','',book.title),el('span','book-ornament','✦'),el('span','book-format',book.format));
   if (/^data:image\/jpeg;base64,[A-Za-z0-9+/=]+$/.test(book.cover||'')) {const image=el('img','detail-cover-image');image.src=book.cover;image.alt='';cover.append(image);}
-  const pct = Math.round(book.progress?.percent || 0); const remaining = 100 - pct; const progressMeta = pct ? ` · ${pct}% read · ${remaining}% left` : ''; const totalMins = book.pages ? Math.max(1, Math.round(book.pages * 1.5)) : null; const totalTimeMeta = totalMins ? ` · ~${totalMins} min total` : '';
-  const remPages = book.pages && pct && pct < 100 ? Math.max(0, Math.round(book.pages * remaining / 100)) : null;
-  const remMins = remPages ? Math.max(1, Math.round(remPages * 1.5)) : null;
-  const remTimeMeta = remMins ? (remMins >= 60 ? ` · ~${Math.floor(remMins/60)}h ${remMins%60}m left` : ` · ~${remMins} min left`) : '';
-  content.append(cover,el('h2','detail-title',book.title),el('p','detail-meta',`${book.author}\n${book.format}${book.pages?' · '+book.pages+' pages':''} · ${size(book.size)} · ${book.rating ? '★'.repeat(book.rating) : 'Not rated'}${progressMeta}${remTimeMeta}${totalTimeMeta}`));
+  content.append(cover,el('h2','detail-title',book.title),el('p','detail-meta',`${book.author}\n${book.format}${book.pages?' · '+book.pages+' pages':''} · ${size(book.size)} · ${book.rating ? '★'.repeat(book.rating) : 'Not rated'}${book.progress?.percent ? ` · ${Math.round(book.progress.percent)}% read` : ''}${readingLeft(book)}`));
   const actions = el('div','detail-actions'), read = el('button','primary','Open book →'), download = el('button','secondary',book.sourceFormat ? 'Download EPUB ↓' : 'Download original ↓'); if (book.sourceFormat) download.title = `Converted from ${book.sourceFilename || book.sourceFormat} when imported; the original file was not kept.`; read.onclick = () => readBook(id); download.onclick = () => downloadBook(id); actions.append(read,download); if (!fromReader) content.append(actions);
   content.append(el('p','fine','Read and listen inside your library. Downloaded originals are unencrypted files.'));
   const form = el('form','detail-form');
@@ -582,10 +538,13 @@ async function prepareBackup() {
   busy = true;
   try {
     await closeReader(); await metadataQueue;
+    // close() precedes showModal() so the summary can never be hidden by a reader.
     $('reader-dialog').close();
     const recovery = config.recovery ? decoder.decode(await unseal(config.recovery)) : '';
-    $('backup-recovery').value = recovery;
-    $('backup-storage').textContent = storageDescription(await ThingsStorage.inspect(0)) + ' Backup files are larger than the originals because of encryption and encoding. Check space in your chosen save folder; its free space is not reported here.';
+    $('backup-summary').textContent = `${books.length} books · ${shelves.length} shelves · ${size(books.reduce((total,book)=>total+book.size,0))} of original files. Includes reading positions, notes, highlights and imported covers/fonts. Books and metadata stay encrypted.`;
+    $('backup-storage').textContent=storageDescription(await ThingsStorage.inspect(0))+' Backup files are larger than the originals because of encryption and encoding. Check space in your chosen save folder; its free space is not reported here.';
+    $('backup-recovery').value = recovery; $('recovery-details').hidden = !recovery;
+    $('backup-ack').checked = false; $('backup-export').disabled = true;
     $('backup-dialog').showModal();
   } catch { toast('Could not prepare your backup. Check free space and try again.'); }
   finally { busy = false; resetIdle(); }
@@ -623,9 +582,10 @@ async function init() {
   } catch(e) { $('gate-error').textContent = e.message || 'Browser storage is unavailable. Use a normal browser window.'; $('unlock-button').disabled = true; return; }
   $('unlock-form').addEventListener('submit',unlock); $('lock').onclick = lock;
   $('cancel-restore').onclick = () => { if (!busy) { pendingBackup = null; gateState(); } };
-  $('backup-download').onclick = backup;
-  $('backup-copy').onclick = () => { navigator.clipboard?.writeText($('backup-recovery').value).then(() => toast('Recovery code copied.')).catch(() => toast('Could not copy the recovery code.')); };
-  $('backup-dialog').addEventListener('close',() => { if (!$('backup-dialog').open) { $('backup-recovery').value = ''; } });
+  $('backup-ack').onchange = () => { $('backup-export').disabled = !$('backup-ack').checked; };
+  $('backup-export').onclick = () => { if ($('backup-ack').checked) backup(); };
+  $('recovery-download').onclick = downloadRecovery;
+  $('backup-dialog').addEventListener('close',() => { if (!$('backup-dialog').open) { $('backup-recovery').value = ''; $('backup-ack').checked = false; $('recovery-details').open = false; } });
   $('all-books').onclick = () => { filter = 'all'; render(); }; $('reading-filter').onclick = () => { filter = 'reading'; render(); };
   $('search').oninput = scheduleLibrarySearch;
   $('search').addEventListener('keydown', e => { if (e.key === 'Escape' && $('search').value) { e.preventDefault(); $('search').value = ''; scheduleLibrarySearch(); } });
@@ -653,6 +613,3 @@ async function init() {
   if (hasDeviceAccess) await unlock({preventDefault(){}});
 }
 init();
-
-
-

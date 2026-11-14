@@ -31,4 +31,3 @@
 .library-toolbar>div:first-child{flex:0 0 auto;min-width:210px}.library-toolbar .search{flex:1 1 180px;max-width:300px}
 .shelf-row{overflow-y:hidden;scrollbar-width:thin}
 .shelf-label-actions{display:flex;align-items:center;gap:7px}.shelf-label #edit-shelves{font-size:10px;letter-spacing:.5px;color:#687369;text-decoration:underline;text-underline-offset:3px;padding:0}.shelf-edit-row{display:flex;align-items:center;gap:8px;padding:10px 0;border-bottom:1px solid var(--line)}.shelf-edit-row:last-child{border-bottom:0}.shelf-edit-row input{flex:1;min-width:0}.shelf-edit-row button{flex-shrink:0}#shelves-list{max-height:46vh;overflow:auto;margin-top:4px}@media(max-width:720px){.mobile-actions button{padding:8px 6px}}
-.progress-pct{font-size:10px;color:#31594a;font-weight:600;margin-top:2px;display:block;}

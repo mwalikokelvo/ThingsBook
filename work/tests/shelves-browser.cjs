@@ -33,11 +33,7 @@ async function openManager(page, control) {
 
 async function main() {
   await serve(app);
-  const context = await chromium.launchPersistentContext(profile, {
-    channel: process.platform === 'win32' ? 'msedge' : undefined,
-    headless: true,
-    viewport: {width:1280, height:900}
-  });
+  const context = await chromium.launchPersistentContext(profile, {headless:true, viewport:{width:1280, height:900}});
   const page = context.pages()[0] || await context.newPage();
   page.on('dialog', dialog => dialog.accept());
   const problems = []; page.on('pageerror', error => problems.push(error.message));
