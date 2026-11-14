@@ -4,7 +4,7 @@ ThingsBook is a private, local-first reading and listening app for Windows and A
 
 ## Current release
 
-The latest release is **ThingsBook 1.15.0**: the Windows EXE and the Android APK (signed with the original key, so it installs over earlier versions) are on the [GitHub Releases page](https://github.com/mwalikokelvo/ThingsBook/releases), with checksums; they are not committed to Git. `CHANGELOG.md` lists what changed in each version.
+The latest release is **ThingsBook 1.15.1**: the Windows EXE and the Android APK (signed with the original key, so it installs over earlier versions) are on the [GitHub Releases page](https://github.com/mwalikokelvo/ThingsBook/releases), with checksums; they are not committed to Git. `CHANGELOG.md` lists what changed in each version.
 
 Highlights include:
 
@@ -66,7 +66,7 @@ To build your private Android voices into the APK, add `--voice-pack "D:\path\to
 
 ## Project status
 
-Release 1.15.0 is the latest release (see `CHANGELOG.md`). Whole-book reading with the screen off is covered by `work/tests/endurance-browser.cjs`, but the broader Unified v5 rebuild is still in progress. Native Android storage/search migration, semantic search, private sync, precise EPUB CFI annotations, and parts of the native-shell roadmap remain unfinished. See `Start-here.txt` for the current release boundary.
+Release 1.15.1 is the latest release (see `CHANGELOG.md`). Whole-book reading with the screen off is covered by `work/tests/endurance-browser.cjs`, but the broader Unified v5 rebuild is still in progress. Native Android storage/search migration, semantic search, private sync, precise EPUB CFI annotations, and parts of the native-shell roadmap remain unfinished. See `Start-here.txt` for the current release boundary.
 
 ## Privacy and security
 

@@ -2,6 +2,27 @@
 
 ## Unreleased
 
+## 1.15.1 — 2026-11-13
+
+Two finished improvements from the 1 November overnight work that were left on a side branch and
+never reached `main`:
+
+### Fixes
+- **One clear message instead of silent failures:** an unexpected error anywhere in the app now shows
+  a short "Something went wrong" notice (at most one at a time); harmless browser notices such as a
+  cancelled page drawing are ignored.
+- **Personal voices:** "1/2" is read "one half" (also 2 1/2, 1/3, 2/3, 1/4, 3/4); phone numbers are
+  read digit by digit; "Dr.", "Mr.", "Mrs." and "Ms." are expanded before "and", "or" and quotes too.
+  Ranges such as "200-2000" or "pages 300-1500" stay ranges.
+- **Citations:** the Cite dialog includes the PDF page (BibTeX `pages = {n}`, "(p. n)" in APA/MLA), and
+  every BibTeX entry gets a usable key even when the book id has no letters or digits.
+- **Screen readers:** the Focus and Full screen buttons say whether they are on, and the book text
+  area has a name.
+
+### Development
+- New `app-reader-core.cjs` (app and reader helpers, error filter, accessibility markup); more cases
+  in `small-fixes.cjs`; `check-1125.py` reads the version from `package.json`.
+
 ## 1.15.0 — 2026-11-13
 
 ### New
@@ -33,13 +54,6 @@
   "dollars.five") and "$0.01" is "one cent".
 - **Dialogs have names for screen readers:** the upload, shelf, protected-PDF, book-details and reader
   dialogs now announce a title when they open.
-
-- **Cite dialog includes the PDF page:** the page being read is passed to the citation, so BibTeX gets
-  `pages = {n}` and APA/MLA get "(p. n)" for PDFs (EPUB and text chapters have no page and are unchanged).
-- **Spoken ranges:** "200-2000" and "pages 300-1500" are read as ranges, not as a phone number; real phone
-  numbers (with an area code, or a normal 555-1234) are unchanged.
-- **Reader controls:** the Focus and Full screen buttons expose pressed/unpressed state, and the book text
-  area has a name for screen readers.
 
 ### Documentation
 - `README.md` project status and `Start-here.txt` described 1.12.5; both now describe 1.14.3.
