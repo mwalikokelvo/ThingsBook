@@ -36,3 +36,17 @@ fix the file, never the test.
 
 Never commit private material: personal voice packs or recordings, books, backups, or the Android
 signing key. This repository is public.
+
+## Team and duties (owner's decision, 17 November 2026)
+
+| Agent | Duty |
+|---|---|
+| **Claude** | Lead. Writes briefs, hands out jobs, reviews every pull request, takes hard bugs, builds releases. |
+| **Codex** (school account) | Main builder for ThingsBook. Reviews every pull request automatically. |
+| **Cursor** (desktop, Auto model) | Second builder, when AnF work allows. Branch `cursor/<topic>`. |
+| **Antigravity / Gemini** | Design and UI passes, reading big logs, testing the Windows and Android builds. |
+| **Hermes** (free OpenRouter model) | Small jobs only: docs, changelog lines, simple tests, tidy-ups. It has about 50 free requests a day, shared with the AI review workflow. |
+| **DeepSeek harness, Grok** | Research and second opinions. No code changes. |
+| **GitHub** | Tests and the free AI review on every pull request. |
+
+Every agent: take only the job you were given, one branch per job, follow the rules above, never merge your own pull request.
