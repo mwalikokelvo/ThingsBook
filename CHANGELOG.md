@@ -2,6 +2,11 @@
 
 ## Unreleased
 
+### Tooling
+- **Free AI review on pull requests** (`.github/workflows/ai-review.yml`): reviews each PR with
+  OpenRouter's free models so reviews keep coming when
+  Cursor Bugbot's quota runs out.
+
 ## 1.15.1 — 2026-11-13
 
 Two finished improvements from the 1 November overnight work that were left on a side branch and
