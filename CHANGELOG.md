@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Assistants: added Google Chrome's modern-web-guidance skill in `.agents/skills/` (offline web best-practice guides), with its usage tracking removed. See `PRIVACY-PATCH.md` in that folder.
+
 ## 1.16.0 — 2026-11-18
 
 ### Name
